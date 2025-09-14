@@ -574,7 +574,7 @@ app.listen(PORT, () => {
 module.exports = app;
 
 // AUTHENTIFICATION SIMPLE
-const users = {
+const userData = {
   'admin': { password: 'admin123', grade: 'Directeur' },
   'marie': { password: 'marie123', grade: 'Associé Senior' },
   'pierre': { password: 'pierre123', grade: 'Avocat' },

@@ -114,6 +114,29 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Routes de debug (temporaires)
+app.get('/debug-env', (req, res) => {
+  const config = getDbConfig();
+  res.json({
+    'Variables ENV détectées': {
+      PGHOST: process.env.PGHOST || '❌ Non défini',
+      PGPORT: process.env.PGPORT || '❌ Non défini',
+      PGDATABASE: process.env.PGDATABASE || '❌ Non défini',
+      PGUSER: process.env.PGUSER || '❌ Non défini',
+      PGPASSWORD: process.env.PGPASSWORD ? '✅ Défini (masqué)' : '❌ Non défini',
+      DATABASE_URL: process.env.DATABASE_URL ? '✅ Défini (masqué)' : '❌ Non défini'
+    },
+    'Configuration utilisée par le code': {
+      host: config.host || config.connectionString,
+      port: config.port,
+      database: config.database,
+      user: config.user,
+      ssl: config.ssl ? '✅ Activé' : '❌ Désactivé'
+    },
+    'NODE_ENV': process.env.NODE_ENV || 'non défini',
+    'RAILWAY_ENVIRONMENT': process.env.RAILWAY_ENVIRONMENT || 'non défini'
+  });
+});
+
 app.get('/debug-db', async (req, res) => {
   try {
     const client = await pool.connect();
@@ -193,7 +216,15 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
     }
     
     console.log('📊 Recherche utilisateur dans la DB...');
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    
+    // Ajouter un timeout à la requête
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Timeout requête DB')), 15000); // 15 secondes
+    });
+    
+    const queryPromise = pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    
+    const result = await Promise.race([queryPromise, timeoutPromise]);
     console.log('📊 Résultat requête:', result.rows.length, 'utilisateur(s) trouvé(s)');
     
     const user = result.rows[0];

@@ -620,8 +620,9 @@ app.get('/', (req, res) => {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            margin: 0;
-            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .container {
@@ -630,8 +631,7 @@ app.get('/', (req, res) => {
             border-radius: 15px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
+            max-width: 400px;
         }
         
         .logo {
@@ -654,12 +654,6 @@ app.get('/', (req, res) => {
             margin-bottom: 1.5rem;
         }
         
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-        
         label {
             display: block;
             margin-bottom: 0.5rem;
@@ -667,58 +661,35 @@ app.get('/', (req, res) => {
             font-weight: 500;
         }
         
-        input[type="email"], input[type="password"], input[type="text"], 
-        input[type="number"], input[type="date"], input[type="tel"], 
-        select, textarea {
+        input[type="email"], input[type="password"] {
             width: 100%;
             padding: 0.75rem;
             border: 2px solid #e2e8f0;
             border-radius: 8px;
             font-size: 1rem;
             transition: border-color 0.3s;
-            box-sizing: border-box;
         }
         
-        input:focus, select:focus, textarea:focus {
+        input[type="email"]:focus, input[type="password"]:focus {
             outline: none;
             border-color: #667eea;
         }
         
         .btn {
-            padding: 0.75rem 1.5rem;
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             border: none;
             border-radius: 8px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
+            transition: transform 0.2s;
         }
         
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .btn-primary:hover {
+        .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-secondary {
-            background: #f7fafc;
-            color: #4a5568;
-            border: 2px solid #e2e8f0;
-        }
-        
-        .btn-secondary:hover {
-            background: #edf2f7;
-        }
-        
-        .btn-full {
-            width: 100%;
         }
         
         .test-accounts {
@@ -744,27 +715,19 @@ app.get('/', (req, res) => {
         }
         
         .navbar {
-            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+            background: #2d3748;
             color: white;
-            padding: 1.5rem;
+            padding: 1rem;
             margin: -2rem -2rem 2rem -2rem;
             border-radius: 15px 15px 0 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-        
-        .navbar h2 {
-            margin: 0;
-            font-size: 1.5rem;
         }
         
         .nav-links {
             display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
+            gap: 1rem;
         }
         
         .nav-link {
@@ -772,236 +735,43 @@ app.get('/', (req, res) => {
             background: rgba(255,255,255,0.1);
             border: none;
             color: white;
-            border-radius: 8px;
+            border-radius: 5px;
             cursor: pointer;
             text-decoration: none;
             font-size: 0.9rem;
-            transition: all 0.3s;
         }
         
         .nav-link:hover, .nav-link.active {
             background: rgba(255,255,255,0.2);
-            transform: translateY(-1px);
         }
         
         .content {
-            min-height: 600px;
+            min-height: 400px;
         }
         
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-            flex-wrap: wrap;
-            gap: 1rem;
+        .card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
         }
         
-        .section-header h2 {
+        .card h3 {
             color: #2d3748;
-            margin: 0;
+            margin-bottom: 1rem;
         }
         
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
             margin-bottom: 2rem;
         }
         
         .stat-card {
             background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            text-align: center;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border: 1px solid #e2e8f0;
-            transition: all 0.3s;
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
-        
-        .stat-icon {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 0.5rem;
-        }
-        
-        .stat-label {
-            color: #718096;
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-        
-        .welcome-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            border-radius: 12px;
-            text-align: center;
-        }
-        
-        .welcome-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-        
-        .welcome-card h3 {
-            margin-bottom: 1rem;
-            font-size: 1.5rem;
-        }
-        
-        .welcome-card p {
-            margin-bottom: 1.5rem;
-            opacity: 0.9;
-        }
-        
-        .feature-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1rem;
-            text-align: left;
-        }
-        
-        .feature-item {
-            background: rgba(255,255,255,0.1);
-            padding: 1rem;
-            border-radius: 8px;
-            font-size: 0.9rem;
-        }
-        
-        .form-card, .data-card {
-            background: #f8f9fa;
-            padding: 2rem;
-            border-radius: 12px;
-            margin-bottom: 2rem;
-            border: 1px solid #e2e8f0;
-        }
-        
-        .form-card h3, .data-card h3 {
-            color: #2d3748;
-            margin-bottom: 1.5rem;
-        }
-        
-        .data-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
-        
-        .data-header h3 {
-            margin: 0;
-        }
-        
-        .form-actions {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2rem;
-            flex-wrap: wrap;
-        }
-        
-        .data-list {
-            max-height: 500px;
-            overflow-y: auto;
-        }
-        
-        .data-item {
-            background: white;
             padding: 1.5rem;
             border-radius: 8px;
-            margin-bottom: 1rem;
-            border: 1px solid #e2e8f0;
-            transition: all 0.3s;
-        }
-        
-        .data-item:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        
-        .data-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-        
-        .data-item-title {
-            font-weight: bold;
-            color: #2d3748;
-            font-size: 1.1rem;
-        }
-        
-        .data-item-info {
-            color: #718096;
-            font-size: 0.9rem;
-            line-height: 1.4;
-        }
-        
-        .error {
-            background: #fed7d7;
-            color: #c53030;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        
-        .success {
-            background: #c6f6d5;
-            color: #2f855a;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        
-        .loading {
-            background: #bee3f8;
-            color: #2b6cb0;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-                margin: 10px;
-            }
-            
-            .navbar {
-                margin: -1rem -1rem 2rem -1rem;
-                padding: 1rem;
-            }
-            
-            .nav-links {
-                width: 100%;
-                justify-content: center;
-            }
-            
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-            
-            .stats {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            }
-            
-            .feature-list {
-                grid-template-columns: 1fr;
-            }
-        }: 8px;
             text-align: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
@@ -1216,8 +986,6 @@ app.get('/', (req, res) => {
         
         async function loadClients() {
             try {
-                showMessage('Chargement des clients...', 'loading');
-                
                 const response = await fetch('/api/clients', {
                     headers: { 'Authorization': 'Bearer ' + authToken }
                 });
@@ -1226,39 +994,28 @@ app.get('/', (req, res) => {
                     const clients = await response.json();
                     const clientList = document.getElementById('clientList');
                     
-                    document.getElementById('loginMessage').innerHTML = '';
-                    
                     if (clients.length === 0) {
-                        clientList.innerHTML = '<p>Aucun client trouvé. Ajoutez-en un nouveau !</p>';
+                        clientList.innerHTML = '<p>Aucun client trouvé.</p>';
                     } else {
-                        clientList.innerHTML = clients.map(client => `
-                            <div class="data-item">
-                                <div class="data-item-header">
-                                    <div class="data-item-title">${client.prenom} ${client.nom}</div>
-                                    <div style="color: #667eea;">${client.profession || 'Profession non renseignée'}</div>
-                                </div>
-                                <div class="data-item-info">
-                                    <strong>Email :</strong> ${client.email || 'N/A'}<br>
-                                    <strong>Téléphone :</strong> ${client.telephone || 'N/A'}<br>
-                                    <strong>Adresse :</strong> ${client.adresse || 'N/A'}<br>
-                                    ${client.notes ? '<strong>Notes :</strong> ' + client.notes : ''}
-                                </div>
+                        clientList.innerHTML = clients.map(client => \`
+                            <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin: 0.5rem 0;">
+                                <strong>\${client.prenom} \${client.nom}</strong><br>
+                                📧 \${client.email || 'N/A'}<br>
+                                📞 \${client.telephone || 'N/A'}
                             </div>
-                        `).join('');
+                        \`).join('');
                     }
                 } else {
-                    document.getElementById('clientList').innerHTML = '<p class="error">Erreur lors du chargement des clients.</p>';
+                    document.getElementById('clientList').innerHTML = '<p>Erreur lors du chargement des clients.</p>';
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                document.getElementById('clientList').innerHTML = '<p class="error">Erreur lors du chargement des clients.</p>';
+                document.getElementById('clientList').innerHTML = '<p>Erreur lors du chargement des clients.</p>';
             }
         }
         
         async function loadDossiers() {
             try {
-                showMessage('Chargement des dossiers...', 'loading');
-                
                 const response = await fetch('/api/dossiers', {
                     headers: { 'Authorization': 'Bearer ' + authToken }
                 });
@@ -1267,44 +1024,24 @@ app.get('/', (req, res) => {
                     const dossiers = await response.json();
                     const dossierList = document.getElementById('dossierList');
                     
-                    document.getElementById('loginMessage').innerHTML = '';
-                    
                     if (dossiers.length === 0) {
                         dossierList.innerHTML = '<p>Aucun dossier trouvé.</p>';
                     } else {
-                        dossierList.innerHTML = dossiers.map(dossier => 
-                            '<div class="data-item">' +
-                                '<div class="data-item-header">' +
-                                    '<div class="data-item-title">' + dossier.titre + '</div>' +
-                                    '<div style="color: #667eea; font-weight: bold;">' + dossier.statut + '</div>' +
-                                '</div>' +
-                                '<div class="data-item-info">' +
-                                    '<strong>Numéro :</strong> ' + dossier.numero_dossier + '<br>' +
-                                    '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' +
-                                    '<strong>Type d\'affaire :</strong> ' + (dossier.type_affaire || 'N/A') + '<br>' +
-                                    '<strong>Avocat responsable :</strong> ' + (dossier.avocat_responsable || 'N/A') + '<br>' +
-                                    '<strong>Priorité :</strong> ' + (dossier.priorite || 'normale') + '<br>' +
-                                    (dossier.description ? '<strong>Description :</strong> ' + dossier.description : '') +
-                                '</div>' +
-                            '</div>'
-                        ).join('');
+                        dossierList.innerHTML = dossiers.map(dossier => \`
+                            <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin: 0.5rem 0;">
+                                <strong>\${dossier.titre}</strong><br>
+                                📂 \${dossier.numero_dossier}<br>
+                                👤 \${dossier.prenom} \${dossier.nom}<br>
+                                📊 \${dossier.statut}
+                            </div>
+                        \`).join('');
                     }
                 } else {
-                    document.getElementById('dossierList').innerHTML = '<p class="error">Erreur lors du chargement des dossiers.</p>';
+                    document.getElementById('dossierList').innerHTML = '<p>Erreur lors du chargement des dossiers.</p>';
                 }
             } catch (error) {
                 console.error('Erreur:', error);
-                document.getElementById('dossierList').innerHTML = '<p class="error">Erreur lors du chargement des dossiers.</p>';
-            }
-        }
-        
-        function showMessage(message, type = 'error') {
-            const messageDiv = document.getElementById('loginMessage');
-            if (messageDiv) {
-                messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
-                if (type === 'success' || type === 'loading') {
-                    setTimeout(() => messageDiv.innerHTML = '', 3000);
-                }
+                document.getElementById('dossierList').innerHTML = '<p>Erreur lors du chargement des dossiers.</p>';
             }
         }
         

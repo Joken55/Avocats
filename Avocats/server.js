@@ -46,7 +46,7 @@ const pool = new Pool(getDbConfig());
 
 // Middlewares de sécurité
 app.use(helmet({
-  contentSecurityPolicy: false, // Désactiver temporairement pour debug
+  contentSecurityPolicy: false,
 }));
 
 app.use(compression());
@@ -123,7 +123,7 @@ app.get('/debug-env', (req, res) => {
       DATABASE_URL: process.env.DATABASE_URL ? 'Défini (masqué)' : 'Non défini'
     },
     'Configuration utilisée par le code': {
-      host: config.host,
+      host: config.host || config.connectionString,
       port: config.port,
       database: config.database,
       user: config.user,
@@ -138,6 +138,13 @@ app.get('/debug-db', async (req, res) => {
   try {
     console.log('Test de connexion DB...');
     const config = getDbConfig();
+    console.log('Configuration DB utilisée:', {
+      host: config.host || 'via connectionString',
+      port: config.port,
+      database: config.database,
+      user: config.user,
+      ssl: !!config.ssl
+    });
     
     const client = await pool.connect();
     console.log('Connexion au pool réussie');
@@ -157,7 +164,7 @@ app.get('/debug-db', async (req, res) => {
     res.json({ 
       status: 'DB connectée',
       config: {
-        host: config.host,
+        host: config.host || 'connectionString utilisé',
         port: config.port,
         database: config.database,
         ssl: !!config.ssl
@@ -170,8 +177,18 @@ app.get('/debug-db', async (req, res) => {
     res.status(500).json({ 
       status: 'Erreur DB', 
       error: error.message,
-      code: error.code
+      code: error.code,
+      config_used: getDbConfig()
     });
+  }
+});
+
+app.get('/debug-users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, username, email, role, created_at FROM users');
+    res.json({ users: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -271,10 +288,45 @@ app.post('/setup-tables', async (req, res) => {
       )
     `);
 
+    // Table des documents
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id SERIAL PRIMARY KEY,
+        dossier_id INTEGER REFERENCES dossiers(id) ON DELETE CASCADE,
+        nom_fichier VARCHAR(255) NOT NULL,
+        nom_original VARCHAR(255) NOT NULL,
+        type_fichier VARCHAR(100),
+        taille_fichier INTEGER,
+        chemin_fichier VARCHAR(500) NOT NULL,
+        description TEXT,
+        uploaded_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table des notes
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id SERIAL PRIMARY KEY,
+        dossier_id INTEGER REFERENCES dossiers(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        contenu TEXT NOT NULL,
+        type_note VARCHAR(50) DEFAULT 'generale',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Index pour améliorer les performances
     await pool.query('CREATE INDEX IF NOT EXISTS idx_employes_numero ON employes(numero_employe)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_employes_poste ON employes(poste)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_dossiers_numero ON dossiers(numero_dossier)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_dossiers_client ON dossiers(client_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_rdv_date ON rendez_vous(date_rdv)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_rdv_client ON rendez_vous(client_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_documents_dossier ON documents(dossier_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_notes_dossier ON notes(dossier_id)');
 
     console.log('Tables créées avec succès');
 
@@ -294,7 +346,7 @@ app.post('/setup-tables', async (req, res) => {
 
     res.json({ 
       message: 'Setup terminé avec succès!',
-      tables_created: ['users', 'employes', 'clients', 'dossiers', 'rendez_vous'],
+      tables_created: ['users', 'employes', 'clients', 'dossiers', 'rendez_vous', 'documents', 'notes'],
       admin_created: existingAdmin.rows.length === 0
     });
 
@@ -334,7 +386,7 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
     
     if (!user) {
       console.log('Utilisateur non trouvé:', email);
-      return res.status(401).json({ error: 'Utilisateur non trouvé' });
+      return res.status(401).json({ error: 'Utilisateur non trouvé. Vérifiez que l\'admin a été créé.' });
     }
     
     console.log('Utilisateur trouvé:', user.email, 'role:', user.role);
@@ -469,7 +521,7 @@ app.get('/api/rendez-vous', authenticateToken, async (req, res) => {
   }
 });
 
-// Route principale - Interface web complète
+// Route principale - Interface HTML
 app.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="fr">
@@ -544,7 +596,7 @@ app.get('/', (req, res) => {
     <div class="container">
         <div id="loginForm">
             <div class="logo">
-                <h1>🏛️ Cabinet d'Avocats</h1>
+                <h1>Cabinet d'Avocats</h1>
                 <p>Connexion au système GTA5 RP</p>
             </div>
             <div id="loginMessage"></div>
@@ -567,13 +619,13 @@ app.get('/', (req, res) => {
         
         <div id="dashboard" class="dashboard">
             <div class="navbar">
-                <h2>🏛️ Cabinet d'Avocats</h2>
+                <h2>Cabinet d'Avocats</h2>
                 <div class="nav-links">
-                    <button class="nav-link active" onclick="showSection('overview')">📊 Aperçu</button>
-                    <button class="nav-link" onclick="showSection('employes')">👥 Employés</button>
-                    <button class="nav-link" onclick="showSection('clients')">🤝 Clients</button>
-                    <button class="nav-link" onclick="showSection('dossiers')">📁 Dossiers</button>
-                    <button class="nav-link" onclick="logout()">🚪 Déconnexion</button>
+                    <button class="nav-link active" onclick="showSection('overview')">Aperçu</button>
+                    <button class="nav-link" onclick="showSection('employes')">Employés</button>
+                    <button class="nav-link" onclick="showSection('clients')">Clients</button>
+                    <button class="nav-link" onclick="showSection('dossiers')">Dossiers</button>
+                    <button class="nav-link" onclick="logout()">Déconnexion</button>
                 </div>
             </div>
             
@@ -601,8 +653,21 @@ app.get('/', (req, res) => {
                             <div class="stat-label">RDV à venir</div>
                         </div>
                     </div>
+                    
                     <div class="welcome-card">
                         <div class="welcome-icon">🎉</div>
+                        <h3>Bienvenue dans votre Cabinet d'Avocats !</h3>
+                        <p>Votre système de gestion est opérationnel.</p>
+                    </div>
+                </div>
+                
+                <div id="employes" class="section" style="display: none;">
+                    <div class="section-header">
+                        <h2>👥 Gestion des Employés</h2>
+                        <button class="btn btn-primary" onclick="toggleEmployeForm()">➕ Nouvel Employé</button>
+                    </div>
+                    
+                    <div id="employeForm" class="form-card" style="display: none;">
                         <h3>Ajouter un Employé</h3>
                         <form id="newEmployeForm">
                             <div class="form-row">
@@ -630,8 +695,18 @@ app.get('/', (req, res) => {
                                     </select>
                                 </div>
                                 <div class="form-group">
+                                    <label>Numéro Employé</label>
+                                    <input type="text" name="numero_employe" placeholder="EMP001">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
                                     <label>Salaire de Base ($)</label>
                                     <input type="number" name="salaire_base" step="0.01" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Salaire Maximum ($)</label>
+                                    <input type="number" name="salaire_maximum" step="0.01">
                                 </div>
                             </div>
                             <div class="form-row">
@@ -645,15 +720,16 @@ app.get('/', (req, res) => {
                                 </div>
                             </div>
                             <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">Enregistrer</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleEmployeForm()">Annuler</button>
+                                <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleEmployeForm()">❌ Annuler</button>
                             </div>
                         </form>
                     </div>
+                    
                     <div class="data-card">
                         <div class="data-header">
                             <h3>Liste des Employés</h3>
-                            <button class="btn btn-secondary" onclick="loadEmployes()">Actualiser</button>
+                            <button class="btn btn-secondary" onclick="loadEmployes()">🔄 Actualiser</button>
                         </div>
                         <div id="employeList" class="data-list">
                             <p>Cliquez sur "Actualiser" pour charger les employés</p>
@@ -666,6 +742,7 @@ app.get('/', (req, res) => {
                         <h2>🤝 Gestion des Clients</h2>
                         <button class="btn btn-primary" onclick="toggleClientForm()">➕ Nouveau Client</button>
                     </div>
+                    
                     <div id="clientForm" class="form-card" style="display: none;">
                         <h3>Ajouter un Client</h3>
                         <form id="newClientForm">
@@ -679,16 +756,27 @@ app.get('/', (req, res) => {
                                     <input type="text" name="nom" required>
                                 </div>
                             </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Email</label>
+                                    <input type="email" name="email">
+                                </div>
+                                <div class="form-group">
+                                    <label>Téléphone</label>
+                                    <input type="tel" name="telephone">
+                                </div>
+                            </div>
                             <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">Enregistrer</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleClientForm()">Annuler</button>
+                                <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleClientForm()">❌ Annuler</button>
                             </div>
                         </form>
                     </div>
+                    
                     <div class="data-card">
                         <div class="data-header">
                             <h3>Liste des Clients</h3>
-                            <button class="btn btn-secondary" onclick="loadClients()">Actualiser</button>
+                            <button class="btn btn-secondary" onclick="loadClients()">🔄 Actualiser</button>
                         </div>
                         <div id="clientList" class="data-list">
                             <p>Cliquez sur "Actualiser" pour charger les clients</p>
@@ -703,7 +791,7 @@ app.get('/', (req, res) => {
                     <div class="data-card">
                         <div class="data-header">
                             <h3>Liste des Dossiers</h3>
-                            <button class="btn btn-secondary" onclick="loadDossiers()">Actualiser</button>
+                            <button class="btn btn-secondary" onclick="loadDossiers()">🔄 Actualiser</button>
                         </div>
                         <div id="dossierList" class="data-list">
                             <p>Cliquez sur "Actualiser" pour charger les dossiers</p>
@@ -924,18 +1012,8 @@ app.get('/', (req, res) => {
                             html += '<div style="color: #667eea; font-weight: bold;">' + employe.poste + '</div>';
                             html += '</div>';
                             html += '<div class="data-item-info">';
-                            html += '<strong>Salaire :</strong> Bienvenue dans votre Cabinet d'Avocats !</h3>
-                        <p>Votre système de gestion est opérationnel.</p>
-                    </div>
-                </div>
-                
-                <div id="employes" class="section" style="display: none;">
-                    <div class="section-header">
-                        <h2>👥 Gestion des Employés</h2>
-                        <button class="btn btn-primary" onclick="toggleEmployeForm()">➕ Nouvel Employé</button>
-                    </div>
-                    <div id="employeForm" class="form-card" style="display: none;">
-                        <h3> + parseFloat(employe.salaire_base).toLocaleString() + '<br>';
+                            html += '<strong>Salaire :</strong> 
+                 + parseFloat(employe.salaire_base).toLocaleString() + '<br>';
                             html += '<strong>Date embauche :</strong> ' + employe.date_embauche + '<br>';
                             if (employe.telephone) html += '<strong>Téléphone :</strong> ' + employe.telephone + '<br>';
                             if (employe.email) html += '<strong>Email :</strong> ' + employe.email;
@@ -1027,7 +1105,6 @@ app.get('/', (req, res) => {
     </script>
 </body>
 </html>`);
-});
 
 // Route de vérification de santé
 app.get('/health', (req, res) => {
@@ -1047,9 +1124,9 @@ app.use('*', (req, res) => {
 // Démarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Cabinet d'Avocats démarré sur le port ${PORT}`);
-  console.log(`Environnement: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`Interface: http://localhost:${PORT}`);
+  console.log(`🚀 Cabinet d'Avocats démarré sur le port ${PORT}`);
+  console.log(`🌐 Environnement: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Interface: http://localhost:${PORT}`);
 });
 
 // Gestion des erreurs non capturées
@@ -1060,15 +1137,4 @@ process.on('unhandledRejection', (reason, promise) => {
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
-});Bienvenue dans votre Cabinet d'Avocats !</h3>
-                        <p>Votre système de gestion est opérationnel.</p>
-                    </div>
-                </div>
-                
-                <div id="employes" class="section" style="display: none;">
-                    <div class="section-header">
-                        <h2>👥 Gestion des Employés</h2>
-                        <button class="btn btn-primary" onclick="toggleEmployeForm()">➕ Nouvel Employé</button>
-                    </div>
-                    <div id="employeForm" class="form-card" style="display: none;">
-                        <h3>
+});

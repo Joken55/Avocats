@@ -57,10 +57,13 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting (configuré pour Railway)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100
+  max: 100,
+  trustProxy: true, // Important pour Railway
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use('/api/', limiter);
 

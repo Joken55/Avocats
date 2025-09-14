@@ -38,8 +38,19 @@ const getDbConfig = () => {
 
 const pool = new Pool(getDbConfig());
 
-// Middlewares de sécurité
-app.use(helmet());
+// Middlewares de sécurité (adaptés pour servir du HTML)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+      fontSrc: ["'self'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+}));
+
 app.use(compression());
 app.use(cors({
   origin: process.env.FRONTEND_URL || '*',
@@ -48,10 +59,10 @@ app.use(cors({
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limite chaque IP à 100 requêtes par windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100
 });
-app.use(limiter);
+app.use('/api/', limiter);
 
 // Middleware pour parsing
 app.use(express.json({ limit: '10mb' }));
@@ -78,7 +89,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -110,15 +121,7 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Middleware pour vérifier les permissions admin
-const requireAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès admin requis' });
-  }
-  next();
-};
-
-// Routes d'authentification
+// Routes API - Authentification
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -151,31 +154,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-app.post('/api/register', authenticateToken, requireAdmin, async (req, res) => {
-  try {
-    const { username, email, password, role = 'user' } = req.body;
-    
-    // Vérifier si l'utilisateur existe déjà
-    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1 OR username = $2', [email, username]);
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: 'Utilisateur déjà existant' });
-    }
-    
-    const passwordHash = await bcrypt.hash(password, 10);
-    
-    const result = await pool.query(
-      'INSERT INTO users (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role',
-      [username, email, passwordHash, role]
-    );
-    
-    res.status(201).json({ user: result.rows[0] });
-  } catch (error) {
-    console.error('Erreur register:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// Routes pour les clients
+// Routes API - Clients
 app.get('/api/clients', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM clients ORDER BY created_at DESC');
@@ -202,60 +181,7 @@ app.post('/api/clients', authenticateToken, async (req, res) => {
   }
 });
 
-app.get('/api/clients/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Client non trouvé' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur récupération client:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.put('/api/clients/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nom, prenom, email, telephone, adresse, date_naissance, profession, notes } = req.body;
-    
-    const result = await pool.query(
-      'UPDATE clients SET nom = $1, prenom = $2, email = $3, telephone = $4, adresse = $5, date_naissance = $6, profession = $7, notes = $8, updated_at = CURRENT_TIMESTAMP WHERE id = $9 RETURNING *',
-      [nom, prenom, email, telephone, adresse, date_naissance, profession, notes, id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Client non trouvé' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur mise à jour client:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.delete('/api/clients/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('DELETE FROM clients WHERE id = $1 RETURNING id', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Client non trouvé' });
-    }
-    
-    res.json({ message: 'Client supprimé avec succès' });
-  } catch (error) {
-    console.error('Erreur suppression client:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// Routes pour les dossiers
+// Routes API - Dossiers
 app.get('/api/dossiers', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -271,23 +197,7 @@ app.get('/api/dossiers', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/dossiers', authenticateToken, async (req, res) => {
-  try {
-    const { numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite } = req.body;
-    
-    const result = await pool.query(
-      'INSERT INTO dossiers (numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur création dossier:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// Routes pour les rendez-vous
+// Routes API - Rendez-vous
 app.get('/api/rendez-vous', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -304,64 +214,464 @@ app.get('/api/rendez-vous', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/rendez-vous', authenticateToken, async (req, res) => {
-  try {
-    const { client_id, dossier_id, titre, description, date_rdv, duree, lieu } = req.body;
-    
-    const result = await pool.query(
-      'INSERT INTO rendez_vous (client_id, dossier_id, titre, description, date_rdv, duree, lieu) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [client_id, dossier_id, titre, description, date_rdv, duree, lieu]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur création rendez-vous:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
+// Route principale - Interface web
+app.get('/', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cabinet d'Avocats - GTA5 RP</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .logo h1 {
+            color: #2d3748;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .logo p {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #2d3748;
+            font-weight: 500;
+        }
+        
+        input[type="email"], input[type="password"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="email"]:focus, input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 0.75rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .test-accounts {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: #f7fafc;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: #4a5568;
+        }
+        
+        .test-accounts h3 {
+            margin-bottom: 0.5rem;
+            color: #2d3748;
+        }
+        
+        .dashboard {
+            display: none;
+        }
+        
+        .dashboard.active {
+            display: block;
+        }
+        
+        .navbar {
+            background: #2d3748;
+            color: white;
+            padding: 1rem;
+            margin: -2rem -2rem 2rem -2rem;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .nav-link {
+            padding: 0.5rem 1rem;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .content {
+            min-height: 400px;
+        }
+        
+        .card {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .card h3 {
+            color: #2d3748;
+            margin-bottom: 1rem;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Formulaire de connexion -->
+        <div id="loginForm">
+            <div class="logo">
+                <h1>🏛️ Cabinet d'Avocats</h1>
+                <p>Connexion au système GTA5 RP</p>
+            </div>
+            
+            <form id="login">
+                <div class="form-group">
+                    <label for="email">Email :</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Mot de passe :</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <button type="submit" class="btn">Se connecter</button>
+            </form>
+            
+            <div class="test-accounts">
+                <h3>Compte de test :</h3>
+                <strong>admin@cabinet.com</strong> / <strong>admin123</strong>
+            </div>
+        </div>
+        
+        <!-- Dashboard -->
+        <div id="dashboard" class="dashboard">
+            <div class="navbar">
+                <h2>📋 Dashboard</h2>
+                <div class="nav-links">
+                    <button class="nav-link active" onclick="showSection('overview')">Aperçu</button>
+                    <button class="nav-link" onclick="showSection('clients')">Clients</button>
+                    <button class="nav-link" onclick="showSection('dossiers')">Dossiers</button>
+                    <button class="nav-link" onclick="logout()">Déconnexion</button>
+                </div>
+            </div>
+            
+            <div class="content">
+                <div id="overview" class="section">
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-number" id="clientCount">0</div>
+                            <div class="stat-label">Clients</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="dossierCount">0</div>
+                            <div class="stat-label">Dossiers</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="rdvCount">0</div>
+                            <div class="stat-label">RDV à venir</div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3>🎉 Bienvenue dans votre Cabinet d'Avocats !</h3>
+                        <p>Votre système de gestion est opérationnel. Vous pouvez maintenant :</p>
+                        <ul style="margin: 1rem 0; padding-left: 2rem;">
+                            <li>Gérer vos clients</li>
+                            <li>Créer et suivre des dossiers</li>
+                            <li>Planifier des rendez-vous</li>
+                            <li>Uploader des documents</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div id="clients" class="section" style="display: none;">
+                    <div class="card">
+                        <h3>👥 Gestion des Clients</h3>
+                        <p>Liste des clients sera affichée ici.</p>
+                        <button class="btn" onclick="loadClients()">Charger les clients</button>
+                        <div id="clientList"></div>
+                    </div>
+                </div>
+                
+                <div id="dossiers" class="section" style="display: none;">
+                    <div class="card">
+                        <h3>📁 Gestion des Dossiers</h3>
+                        <p>Liste des dossiers sera affichée ici.</p>
+                        <button class="btn" onclick="loadDossiers()">Charger les dossiers</button>
+                        <div id="dossierList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-// Routes pour les documents
-app.post('/api/documents', authenticateToken, upload.single('document'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Aucun fichier fourni' });
-    }
-    
-    const { dossier_id, description } = req.body;
-    
-    const result = await pool.query(
-      'INSERT INTO documents (dossier_id, nom_fichier, nom_original, type_fichier, taille_fichier, chemin_fichier, description, uploaded_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [dossier_id, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size, req.file.path, description, req.user.userId]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur upload document:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.get('/api/documents/:id/download', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT * FROM documents WHERE id = $1', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Document non trouvé' });
-    }
-    
-    const document = result.rows[0];
-    const filePath = path.join(__dirname, document.chemin_fichier);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Fichier non trouvé sur le disque' });
-    }
-    
-    res.download(filePath, document.nom_original);
-  } catch (error) {
-    console.error('Erreur téléchargement document:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
+    <script>
+        let authToken = localStorage.getItem('authToken');
+        
+        // Vérifier si déjà connecté au chargement
+        if (authToken) {
+            showDashboard();
+        }
+        
+        // Gestion du formulaire de connexion
+        document.getElementById('login').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    authToken = data.token;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    showDashboard();
+                    loadStats();
+                } else {
+                    alert('Erreur de connexion: ' + data.error);
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        });
+        
+        function showDashboard() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+        }
+        
+        function showSection(sectionName) {
+            // Cacher toutes les sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // Retirer la classe active de tous les liens
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            // Afficher la section demandée
+            document.getElementById(sectionName).style.display = 'block';
+            
+            // Ajouter la classe active au lien cliqué
+            event.target.classList.add('active');
+        }
+        
+        async function loadStats() {
+            try {
+                // Charger les clients
+                const clientsResponse = await fetch('/api/clients', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                
+                if (clientsResponse.ok) {
+                    const clients = await clientsResponse.json();
+                    document.getElementById('clientCount').textContent = clients.length;
+                }
+                
+                // Charger les dossiers
+                const dossiersResponse = await fetch('/api/dossiers', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                
+                if (dossiersResponse.ok) {
+                    const dossiers = await dossiersResponse.json();
+                    document.getElementById('dossierCount').textContent = dossiers.length;
+                }
+                
+                // Charger les rendez-vous
+                const rdvResponse = await fetch('/api/rendez-vous', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                
+                if (rdvResponse.ok) {
+                    const rdvs = await rdvResponse.json();
+                    document.getElementById('rdvCount').textContent = rdvs.length;
+                }
+            } catch (error) {
+                console.error('Erreur chargement stats:', error);
+            }
+        }
+        
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/clients', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                
+                if (response.ok) {
+                    const clients = await response.json();
+                    const clientList = document.getElementById('clientList');
+                    
+                    if (clients.length === 0) {
+                        clientList.innerHTML = '<p>Aucun client trouvé.</p>';
+                    } else {
+                        clientList.innerHTML = clients.map(client => \`
+                            <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin: 0.5rem 0;">
+                                <strong>\${client.prenom} \${client.nom}</strong><br>
+                                📧 \${client.email || 'N/A'}<br>
+                                📞 \${client.telephone || 'N/A'}
+                            </div>
+                        \`).join('');
+                    }
+                } else {
+                    document.getElementById('clientList').innerHTML = '<p>Erreur lors du chargement des clients.</p>';
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                document.getElementById('clientList').innerHTML = '<p>Erreur lors du chargement des clients.</p>';
+            }
+        }
+        
+        async function loadDossiers() {
+            try {
+                const response = await fetch('/api/dossiers', {
+                    headers: {
+                        'Authorization': 'Bearer ' + authToken
+                    }
+                });
+                
+                if (response.ok) {
+                    const dossiers = await response.json();
+                    const dossierList = document.getElementById('dossierList');
+                    
+                    if (dossiers.length === 0) {
+                        dossierList.innerHTML = '<p>Aucun dossier trouvé.</p>';
+                    } else {
+                        dossierList.innerHTML = dossiers.map(dossier => \`
+                            <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin: 0.5rem 0;">
+                                <strong>\${dossier.titre}</strong><br>
+                                📂 \${dossier.numero_dossier}<br>
+                                👤 \${dossier.prenom} \${dossier.nom}<br>
+                                📊 \${dossier.statut}
+                            </div>
+                        \`).join('');
+                    }
+                } else {
+                    document.getElementById('dossierList').innerHTML = '<p>Erreur lors du chargement des dossiers.</p>';
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                document.getElementById('dossierList').innerHTML = '<p>Erreur lors du chargement des dossiers.</p>';
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            location.reload();
+        }
+    </script>
+</body>
+</html>
+  `);
 });
 
 // Route de vérification de santé
@@ -369,30 +679,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Route principale
-app.get('/', (req, res) => {
-  res.send(`
-    <h1>🏛️ Cabinet d'Avocats - API</h1>
-    <p>Serveur fonctionnel !</p>
-    <p><strong>Endpoints disponibles :</strong></p>
-    <ul>
-      <li>POST /api/login - Connexion</li>
-      <li>GET /api/clients - Liste des clients</li>
-      <li>GET /api/dossiers - Liste des dossiers</li>
-      <li>GET /api/rendez-vous - Liste des rendez-vous</li>
-      <li>GET /health - Statut du serveur</li>
-    </ul>
-    <p><em>Utilisateur par défaut : admin@cabinet.com / admin123</em></p>
-  `);
-});
-
-// Middleware de gestion d'erreurs
+// Gestion des erreurs
 app.use((error, req, res, next) => {
   console.error('Erreur serveur:', error);
   res.status(500).json({ error: 'Erreur interne du serveur' });
 });
 
-// Gestion des routes non trouvées
 app.use('*', (req, res) => {
   res.status(404).json({ error: 'Route non trouvée' });
 });
@@ -400,9 +692,9 @@ app.use('*', (req, res) => {
 // Démarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Serveur Cabinet d'Avocats démarré sur le port ${PORT}`);
+  console.log(`🚀 Cabinet d'Avocats démarré sur le port ${PORT}`);
   console.log(`🌍 Environnement: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 URL: http://localhost:${PORT}`);
+  console.log(`🔗 Interface: http://localhost:${PORT}`);
 });
 
 // Gestion des erreurs non capturées

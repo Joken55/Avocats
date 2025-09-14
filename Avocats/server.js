@@ -8,10 +8,12 @@ const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
+
+// Configuration proxy pour Railway
+app.set('trust proxy', 1);
 
 // Configuration de la base de données
 const getDbConfig = () => {
@@ -38,14 +40,13 @@ const getDbConfig = () => {
 
 const pool = new Pool(getDbConfig());
 
-// Middlewares de sécurité (adaptés pour servir du HTML)
+// Middlewares de sécurité (adaptés pour Railway)
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
-      fontSrc: ["'self'", "https://cdnjs.cloudflare.com", "https://cdn.jsdelivr.net"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
@@ -53,19 +54,9 @@ app.use(helmet({
 
 app.use(compression());
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: true,
   credentials: true
 }));
-
-// Rate limiting (configuré pour Railway)
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  trustProxy: true, // Important pour Railway
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use('/api/', limiter);
 
 // Middleware pour parsing
 app.use(express.json({ limit: '10mb' }));
@@ -75,36 +66,34 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
-// Configuration multer pour upload de fichiers
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+// Simple rate limiting middleware (custom)
+const simpleRateLimit = new Map();
+const rateLimitMiddleware = (req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const maxRequests = 100;
+  
+  if (!simpleRateLimit.has(ip)) {
+    simpleRateLimit.set(ip, { count: 1, resetTime: now + windowMs });
+    return next();
   }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Type de fichier non autorisé'));
-    }
+  
+  const record = simpleRateLimit.get(ip);
+  
+  if (now > record.resetTime) {
+    record.count = 1;
+    record.resetTime = now + windowMs;
+    return next();
   }
-});
+  
+  if (record.count >= maxRequests) {
+    return res.status(429).json({ error: 'Trop de requêtes' });
+  }
+  
+  record.count++;
+  next();
+};
 
 // Middleware d'authentification
 const authenticateToken = (req, res, next) => {
@@ -124,15 +113,90 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Routes de debug (temporaires)
+app.get('/debug-db', async (req, res) => {
+  try {
+    const client = await pool.connect();
+    const tables = await client.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `);
+    client.release();
+    
+    res.json({ 
+      status: '✅ DB connectée', 
+      tables: tables.rows.map(t => t.table_name) 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      status: '❌ Erreur DB', 
+      error: error.message 
+    });
+  }
+});
+
+app.get('/debug-users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, username, email, role, created_at FROM users');
+    res.json({ users: result.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/create-admin', async (req, res) => {
+  try {
+    const existingAdmin = await pool.query("SELECT * FROM users WHERE email = 'admin@cabinet.com'");
+    
+    if (existingAdmin.rows.length > 0) {
+      return res.json({ 
+        message: 'Admin déjà existant', 
+        admin: existingAdmin.rows[0].email 
+      });
+    }
+
+    const passwordHash = await bcrypt.hash('admin123', 10);
+    
+    const result = await pool.query(`
+      INSERT INTO users (username, email, password_hash, role, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      RETURNING id, username, email, role
+    `, ['admin', 'admin@cabinet.com', passwordHash, 'admin']);
+    
+    res.json({ 
+      message: '✅ Admin créé avec succès!', 
+      user: result.rows[0] 
+    });
+    
+  } catch (error) {
+    console.error('Erreur création admin:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de la création', 
+      details: error.message 
+    });
+  }
+});
+
 // Routes API - Authentification
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', rateLimitMiddleware, async (req, res) => {
   try {
     const { email, password } = req.body;
+    
+    console.log('Tentative de connexion pour:', email);
     
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     const user = result.rows[0];
     
-    if (!user || !await bcrypt.compare(password, user.password_hash)) {
+    if (!user) {
+      console.log('Utilisateur non trouvé:', email);
+      return res.status(401).json({ error: 'Identifiants invalides' });
+    }
+    
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    
+    if (!passwordMatch) {
+      console.log('Mot de passe incorrect pour:', email);
       return res.status(401).json({ error: 'Identifiants invalides' });
     }
     
@@ -141,6 +205,8 @@ app.post('/api/login', async (req, res) => {
       process.env.JWT_SECRET || 'default-secret',
       { expiresIn: '24h' }
     );
+    
+    console.log('Connexion réussie pour:', email);
     
     res.json({
       token,
@@ -403,6 +469,22 @@ app.get('/', (req, res) => {
             color: #718096;
             font-size: 0.9rem;
         }
+        
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .success {
+            background: #c6f6d5;
+            color: #2f855a;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -414,23 +496,27 @@ app.get('/', (req, res) => {
                 <p>Connexion au système GTA5 RP</p>
             </div>
             
+            <div id="loginMessage"></div>
+            
             <form id="login">
                 <div class="form-group">
                     <label for="email">Email :</label>
-                    <input type="email" id="email" name="email" required>
+                    <input type="email" id="email" name="email" value="admin@cabinet.com" required>
                 </div>
                 
                 <div class="form-group">
                     <label for="password">Mot de passe :</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="password" value="admin123" required>
                 </div>
                 
                 <button type="submit" class="btn">Se connecter</button>
             </form>
             
             <div class="test-accounts">
-                <h3>Compte de test :</h3>
-                <strong>admin@cabinet.com</strong> / <strong>admin123</strong>
+                <h3>Debug :</h3>
+                <button onclick="window.open('/debug-db')" style="margin: 5px; padding: 5px 10px;">Test DB</button>
+                <button onclick="window.open('/debug-users')" style="margin: 5px; padding: 5px 10px;">Voir Users</button>
+                <button onclick="window.open('/create-admin')" style="margin: 5px; padding: 5px 10px;">Créer Admin</button>
             </div>
         </div>
         
@@ -465,20 +551,13 @@ app.get('/', (req, res) => {
                     
                     <div class="card">
                         <h3>🎉 Bienvenue dans votre Cabinet d'Avocats !</h3>
-                        <p>Votre système de gestion est opérationnel. Vous pouvez maintenant :</p>
-                        <ul style="margin: 1rem 0; padding-left: 2rem;">
-                            <li>Gérer vos clients</li>
-                            <li>Créer et suivre des dossiers</li>
-                            <li>Planifier des rendez-vous</li>
-                            <li>Uploader des documents</li>
-                        </ul>
+                        <p>Votre système de gestion est opérationnel.</p>
                     </div>
                 </div>
                 
                 <div id="clients" class="section" style="display: none;">
                     <div class="card">
                         <h3>👥 Gestion des Clients</h3>
-                        <p>Liste des clients sera affichée ici.</p>
                         <button class="btn" onclick="loadClients()">Charger les clients</button>
                         <div id="clientList"></div>
                     </div>
@@ -487,7 +566,6 @@ app.get('/', (req, res) => {
                 <div id="dossiers" class="section" style="display: none;">
                     <div class="card">
                         <h3>📁 Gestion des Dossiers</h3>
-                        <p>Liste des dossiers sera affichée ici.</p>
                         <button class="btn" onclick="loadDossiers()">Charger les dossiers</button>
                         <div id="dossierList"></div>
                     </div>
@@ -499,12 +577,16 @@ app.get('/', (req, res) => {
     <script>
         let authToken = localStorage.getItem('authToken');
         
-        // Vérifier si déjà connecté au chargement
+        function showMessage(message, type = 'error') {
+            const messageDiv = document.getElementById('loginMessage');
+            messageDiv.innerHTML = \`<div class="\${type}">\${message}</div>\`;
+            setTimeout(() => messageDiv.innerHTML = '', 5000);
+        }
+        
         if (authToken) {
             showDashboard();
         }
         
-        // Gestion du formulaire de connexion
         document.getElementById('login').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -512,6 +594,8 @@ app.get('/', (req, res) => {
             const password = document.getElementById('password').value;
             
             try {
+                showMessage('Connexion en cours...', 'success');
+                
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
@@ -526,13 +610,17 @@ app.get('/', (req, res) => {
                     authToken = data.token;
                     localStorage.setItem('authToken', authToken);
                     localStorage.setItem('user', JSON.stringify(data.user));
-                    showDashboard();
-                    loadStats();
+                    showMessage('Connexion réussie !', 'success');
+                    setTimeout(() => {
+                        showDashboard();
+                        loadStats();
+                    }, 1000);
                 } else {
-                    alert('Erreur de connexion: ' + data.error);
+                    showMessage('Erreur: ' + data.error);
                 }
             } catch (error) {
-                alert('Erreur: ' + error.message);
+                showMessage('Erreur de connexion: ' + error.message);
+                console.error('Erreur:', error);
             }
         });
         
@@ -542,55 +630,35 @@ app.get('/', (req, res) => {
         }
         
         function showSection(sectionName) {
-            // Cacher toutes les sections
             document.querySelectorAll('.section').forEach(section => {
                 section.style.display = 'none';
             });
             
-            // Retirer la classe active de tous les liens
             document.querySelectorAll('.nav-link').forEach(link => {
                 link.classList.remove('active');
             });
             
-            // Afficher la section demandée
             document.getElementById(sectionName).style.display = 'block';
-            
-            // Ajouter la classe active au lien cliqué
             event.target.classList.add('active');
         }
         
         async function loadStats() {
             try {
-                // Charger les clients
-                const clientsResponse = await fetch('/api/clients', {
-                    headers: {
-                        'Authorization': 'Bearer ' + authToken
-                    }
-                });
+                const [clientsResponse, dossiersResponse, rdvResponse] = await Promise.all([
+                    fetch('/api/clients', { headers: { 'Authorization': 'Bearer ' + authToken } }),
+                    fetch('/api/dossiers', { headers: { 'Authorization': 'Bearer ' + authToken } }),
+                    fetch('/api/rendez-vous', { headers: { 'Authorization': 'Bearer ' + authToken } })
+                ]);
                 
                 if (clientsResponse.ok) {
                     const clients = await clientsResponse.json();
                     document.getElementById('clientCount').textContent = clients.length;
                 }
                 
-                // Charger les dossiers
-                const dossiersResponse = await fetch('/api/dossiers', {
-                    headers: {
-                        'Authorization': 'Bearer ' + authToken
-                    }
-                });
-                
                 if (dossiersResponse.ok) {
                     const dossiers = await dossiersResponse.json();
                     document.getElementById('dossierCount').textContent = dossiers.length;
                 }
-                
-                // Charger les rendez-vous
-                const rdvResponse = await fetch('/api/rendez-vous', {
-                    headers: {
-                        'Authorization': 'Bearer ' + authToken
-                    }
-                });
                 
                 if (rdvResponse.ok) {
                     const rdvs = await rdvResponse.json();
@@ -604,9 +672,7 @@ app.get('/', (req, res) => {
         async function loadClients() {
             try {
                 const response = await fetch('/api/clients', {
-                    headers: {
-                        'Authorization': 'Bearer ' + authToken
-                    }
+                    headers: { 'Authorization': 'Bearer ' + authToken }
                 });
                 
                 if (response.ok) {
@@ -636,9 +702,7 @@ app.get('/', (req, res) => {
         async function loadDossiers() {
             try {
                 const response = await fetch('/api/dossiers', {
-                    headers: {
-                        'Authorization': 'Bearer ' + authToken
-                    }
+                    headers: { 'Authorization': 'Bearer ' + authToken }
                 });
                 
                 if (response.ok) {

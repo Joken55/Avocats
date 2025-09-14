@@ -1,11 +1,11 @@
-
 {
   "name": "cabinet-avocats-gtarp",
   "version": "1.0.0",
   "description": "Application de gestion pour cabinet d'avocats",
   "main": "server.js",
   "scripts": {
-    "start": "node scripts/startup.js",
+    "start": "node server.js",
+    "start-with-setup": "node scripts/startup.js", 
     "dev": "nodemon server.js",
     "setup": "node setup.js",
     "test": "echo \"Error: no test specified\" && exit 1"

@@ -183,30 +183,45 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    console.log('Tentative de connexion pour:', email);
+    console.log('🔐 Tentative de connexion pour:', email);
+    console.log('📝 Corps de la requête:', req.body);
     
+    // Vérifier que les paramètres sont présents
+    if (!email || !password) {
+      console.log('❌ Email ou mot de passe manquant');
+      return res.status(400).json({ error: 'Email et mot de passe requis' });
+    }
+    
+    console.log('📊 Recherche utilisateur dans la DB...');
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    console.log('📊 Résultat requête:', result.rows.length, 'utilisateur(s) trouvé(s)');
+    
     const user = result.rows[0];
     
     if (!user) {
-      console.log('Utilisateur non trouvé:', email);
-      return res.status(401).json({ error: 'Identifiants invalides' });
+      console.log('❌ Utilisateur non trouvé:', email);
+      return res.status(401).json({ error: 'Utilisateur non trouvé. Vérifiez que l\'admin a été créé.' });
     }
+    
+    console.log('👤 Utilisateur trouvé:', user.email, 'role:', user.role);
+    console.log('🔑 Vérification du mot de passe...');
     
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    console.log('🔑 Mot de passe valide:', passwordMatch);
     
     if (!passwordMatch) {
-      console.log('Mot de passe incorrect pour:', email);
-      return res.status(401).json({ error: 'Identifiants invalides' });
+      console.log('❌ Mot de passe incorrect pour:', email);
+      return res.status(401).json({ error: 'Mot de passe incorrect' });
     }
     
+    console.log('🎟️ Génération du token...');
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'default-secret',
       { expiresIn: '24h' }
     );
     
-    console.log('Connexion réussie pour:', email);
+    console.log('✅ Connexion réussie pour:', email);
     
     res.json({
       token,
@@ -218,8 +233,8 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Erreur login:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('💥 Erreur login:', error);
+    res.status(500).json({ error: 'Erreur serveur: ' + error.message });
   }
 });
 

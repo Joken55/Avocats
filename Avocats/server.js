@@ -139,22 +139,51 @@ app.get('/debug-env', (req, res) => {
 
 app.get('/debug-db', async (req, res) => {
   try {
+    console.log('🔍 Test de connexion DB...');
+    const config = getDbConfig();
+    console.log('📊 Configuration DB utilisée:', {
+      host: config.host || 'via connectionString',
+      port: config.port,
+      database: config.database,
+      user: config.user,
+      ssl: !!config.ssl
+    });
+    
     const client = await pool.connect();
+    console.log('✅ Connexion au pool réussie');
+    
+    // Test simple
+    const testResult = await client.query('SELECT NOW() as current_time');
+    console.log('✅ Requête test réussie:', testResult.rows[0]);
+    
+    // Vérifier les tables
     const tables = await client.query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public'
     `);
+    console.log('📋 Tables trouvées:', tables.rows.length);
+    
     client.release();
     
     res.json({ 
-      status: '✅ DB connectée', 
+      status: '✅ DB connectée',
+      config: {
+        host: config.host || 'connectionString utilisé',
+        port: config.port,
+        database: config.database,
+        ssl: !!config.ssl
+      },
+      current_time: testResult.rows[0],
       tables: tables.rows.map(t => t.table_name) 
     });
   } catch (error) {
+    console.error('💥 Erreur debug-db:', error);
     res.status(500).json({ 
       status: '❌ Erreur DB', 
-      error: error.message 
+      error: error.message,
+      code: error.code,
+      config_used: getDbConfig()
     });
   }
 });

@@ -1272,22 +1272,22 @@ app.get('/', (req, res) => {
                     if (dossiers.length === 0) {
                         dossierList.innerHTML = '<p>Aucun dossier trouvé.</p>';
                     } else {
-                        dossierList.innerHTML = dossiers.map(dossier => `
-                            <div class="data-item">
-                                <div class="data-item-header">
-                                    <div class="data-item-title">${dossier.titre}</div>
-                                    <div style="color: #667eea; font-weight: bold;">${dossier.statut}</div>
-                                </div>
-                                <div class="data-item-info">
-                                    <strong>Numéro :</strong> ${dossier.numero_dossier}<br>
-                                    <strong>Client :</strong> ${dossier.prenom} ${dossier.nom}<br>
-                                    <strong>Type d'affaire :</strong> ${dossier.type_affaire || 'N/A'}<br>
-                                    <strong>Avocat responsable :</strong> ${dossier.avocat_responsable || 'N/A'}<br>
-                                    <strong>Priorité :</strong> ${dossier.priorite || 'normale'}<br>
-                                    ${dossier.description ? '<strong>Description :</strong> ' + dossier.description : ''}
-                                </div>
-                            </div>
-                        `).join('');
+                        dossierList.innerHTML = dossiers.map(dossier => 
+                            '<div class="data-item">' +
+                                '<div class="data-item-header">' +
+                                    '<div class="data-item-title">' + dossier.titre + '</div>' +
+                                    '<div style="color: #667eea; font-weight: bold;">' + dossier.statut + '</div>' +
+                                '</div>' +
+                                '<div class="data-item-info">' +
+                                    '<strong>Numéro :</strong> ' + dossier.numero_dossier + '<br>' +
+                                    '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' +
+                                    '<strong>Type d\'affaire :</strong> ' + (dossier.type_affaire || 'N/A') + '<br>' +
+                                    '<strong>Avocat responsable :</strong> ' + (dossier.avocat_responsable || 'N/A') + '<br>' +
+                                    '<strong>Priorité :</strong> ' + (dossier.priorite || 'normale') + '<br>' +
+                                    (dossier.description ? '<strong>Description :</strong> ' + dossier.description : '') +
+                                '</div>' +
+                            '</div>'
+                        ).join('');
                     }
                 } else {
                     document.getElementById('dossierList').innerHTML = '<p class="error">Erreur lors du chargement des dossiers.</p>';

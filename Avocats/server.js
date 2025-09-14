@@ -85,7 +85,7 @@ const rateLimitMiddleware = (req, res, next) => {
   }
   
   if (record.count >= maxRequests) {
-    return res.status(429).json({ error: 'Trop de requêtes' });
+    return res.status(429).json({ error: 'Trop de requetes' });
   }
   
   record.count++;
@@ -98,7 +98,7 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Token d\'accès requis' });
+    return res.status(401).json({ error: 'Token d\'acces requis' });
   }
 
   jwt.verify(token, process.env.JWT_SECRET || 'default-secret', (err, user) => {
@@ -114,23 +114,23 @@ const authenticateToken = (req, res, next) => {
 app.get('/debug-env', (req, res) => {
   const config = getDbConfig();
   res.json({
-    'Variables ENV détectées': {
-      PGHOST: process.env.PGHOST || 'Non défini',
-      PGPORT: process.env.PGPORT || 'Non défini',
-      PGDATABASE: process.env.PGDATABASE || 'Non défini',
-      PGUSER: process.env.PGUSER || 'Non défini',
-      PGPASSWORD: process.env.PGPASSWORD ? 'Défini (masqué)' : 'Non défini',
-      DATABASE_URL: process.env.DATABASE_URL ? 'Défini (masqué)' : 'Non défini'
+    'Variables ENV detectees': {
+      PGHOST: process.env.PGHOST || 'Non defini',
+      PGPORT: process.env.PGPORT || 'Non defini',
+      PGDATABASE: process.env.PGDATABASE || 'Non defini',
+      PGUSER: process.env.PGUSER || 'Non defini',
+      PGPASSWORD: process.env.PGPASSWORD ? 'Defini (masque)' : 'Non defini',
+      DATABASE_URL: process.env.DATABASE_URL ? 'Defini (masque)' : 'Non defini'
     },
-    'Configuration utilisée par le code': {
+    'Configuration utilisee par le code': {
       host: config.host || config.connectionString,
       port: config.port,
       database: config.database,
       user: config.user,
-      ssl: config.ssl ? 'Activé' : 'Désactivé'
+      ssl: config.ssl ? 'Active' : 'Desactive'
     },
-    'NODE_ENV': process.env.NODE_ENV || 'non défini',
-    'RAILWAY_ENVIRONMENT': process.env.RAILWAY_ENVIRONMENT || 'non défini'
+    'NODE_ENV': process.env.NODE_ENV || 'non defini',
+    'RAILWAY_ENVIRONMENT': process.env.RAILWAY_ENVIRONMENT || 'non defini'
   });
 });
 
@@ -138,7 +138,7 @@ app.get('/debug-db', async (req, res) => {
   try {
     console.log('Test de connexion DB...');
     const config = getDbConfig();
-    console.log('Configuration DB utilisée:', {
+    console.log('Configuration DB utilisee:', {
       host: config.host || 'via connectionString',
       port: config.port,
       database: config.database,
@@ -147,24 +147,24 @@ app.get('/debug-db', async (req, res) => {
     });
     
     const client = await pool.connect();
-    console.log('Connexion au pool réussie');
+    console.log('Connexion au pool reussie');
     
     const testResult = await client.query('SELECT NOW() as current_time');
-    console.log('Requête test réussie:', testResult.rows[0]);
+    console.log('Requete test reussie:', testResult.rows[0]);
     
     const tables = await client.query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public'
     `);
-    console.log('Tables trouvées:', tables.rows.length);
+    console.log('Tables trouvees:', tables.rows.length);
     
     client.release();
     
     res.json({ 
-      status: 'DB connectée',
+      status: 'DB connectee',
       config: {
-        host: config.host || 'connectionString utilisé',
+        host: config.host || 'connectionString utilise',
         port: config.port,
         database: config.database,
         ssl: !!config.ssl
@@ -195,7 +195,7 @@ app.get('/debug-users', async (req, res) => {
 // Route pour créer toutes les tables
 app.post('/setup-tables', async (req, res) => {
   try {
-    console.log('Création des tables...');
+    console.log('Creation des tables...');
 
     // Table des utilisateurs
     await pool.query(`
@@ -210,7 +210,7 @@ app.post('/setup-tables', async (req, res) => {
       )
     `);
 
-    // Table des employés
+    // Table des employes
     await pool.query(`
       CREATE TABLE IF NOT EXISTS employes (
         id SERIAL PRIMARY KEY,
@@ -317,7 +317,7 @@ app.post('/setup-tables', async (req, res) => {
       )
     `);
 
-    // Index pour améliorer les performances
+    // Index pour ameliorer les performances
     await pool.query('CREATE INDEX IF NOT EXISTS idx_employes_numero ON employes(numero_employe)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_employes_poste ON employes(poste)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email)');
@@ -328,9 +328,9 @@ app.post('/setup-tables', async (req, res) => {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_documents_dossier ON documents(dossier_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_notes_dossier ON notes(dossier_id)');
 
-    console.log('Tables créées avec succès');
+    console.log('Tables creees avec succes');
 
-    // Créer l'admin par défaut
+    // Creer l'admin par defaut
     const existingAdmin = await pool.query("SELECT * FROM users WHERE email = 'admin@cabinet.com'");
     
     if (existingAdmin.rows.length === 0) {
@@ -341,11 +341,11 @@ app.post('/setup-tables', async (req, res) => {
         VALUES ($1, $2, $3, $4)
       `, ['admin', 'admin@cabinet.com', passwordHash, 'admin']);
       
-      console.log('Utilisateur admin créé');
+      console.log('Utilisateur admin cree');
     }
 
     res.json({ 
-      message: 'Setup terminé avec succès!',
+      message: 'Setup termine avec succes!',
       tables_created: ['users', 'employes', 'clients', 'dossiers', 'rendez_vous', 'documents', 'notes'],
       admin_created: existingAdmin.rows.length === 0
     });
@@ -374,23 +374,23 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
     console.log('Recherche utilisateur dans la DB...');
     
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Timeout requête DB')), 15000);
+      setTimeout(() => reject(new Error('Timeout requete DB')), 15000);
     });
     
     const queryPromise = pool.query('SELECT * FROM users WHERE email = $1', [email]);
     
     const result = await Promise.race([queryPromise, timeoutPromise]);
-    console.log('Résultat requête:', result.rows.length, 'utilisateur(s) trouvé(s)');
+    console.log('Resultat requete:', result.rows.length, 'utilisateur(s) trouve(s)');
     
     const user = result.rows[0];
     
     if (!user) {
-      console.log('Utilisateur non trouvé:', email);
-      return res.status(401).json({ error: 'Utilisateur non trouvé. Vérifiez que l\'admin a été créé.' });
+      console.log('Utilisateur non trouve:', email);
+      return res.status(401).json({ error: 'Utilisateur non trouve. Verifiez que l\'admin a ete cree.' });
     }
     
-    console.log('Utilisateur trouvé:', user.email, 'role:', user.role);
-    console.log('Vérification du mot de passe...');
+    console.log('Utilisateur trouve:', user.email, 'role:', user.role);
+    console.log('Verification du mot de passe...');
     
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
     console.log('Mot de passe valide:', passwordMatch);
@@ -400,14 +400,14 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
       return res.status(401).json({ error: 'Mot de passe incorrect' });
     }
     
-    console.log('Génération du token...');
+    console.log('Generation du token...');
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'default-secret',
       { expiresIn: '24h' }
     );
     
-    console.log('Connexion réussie pour:', email);
+    console.log('Connexion reussie pour:', email);
     
     res.json({
       token,
@@ -424,13 +424,13 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
   }
 });
 
-// Routes API - Employés
+// Routes API - Employes
 app.get('/api/employes', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM employes ORDER BY nom, prenom');
     res.json(result.rows);
   } catch (error) {
-    console.error('Erreur récupération employés:', error);
+    console.error('Erreur recuperation employes:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -456,7 +456,7 @@ app.post('/api/employes', authenticateToken, async (req, res) => {
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Erreur création employé:', error);
+    console.error('Erreur creation employe:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -467,7 +467,7 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
     const result = await pool.query('SELECT * FROM clients ORDER BY created_at DESC');
     res.json(result.rows);
   } catch (error) {
-    console.error('Erreur récupération clients:', error);
+    console.error('Erreur recuperation clients:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -483,7 +483,7 @@ app.post('/api/clients', authenticateToken, async (req, res) => {
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Erreur création client:', error);
+    console.error('Erreur creation client:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -499,7 +499,7 @@ app.get('/api/dossiers', authenticateToken, async (req, res) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Erreur récupération dossiers:', error);
+    console.error('Erreur recuperation dossiers:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -516,7 +516,7 @@ app.get('/api/rendez-vous', authenticateToken, async (req, res) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Erreur récupération rendez-vous:', error);
+    console.error('Erreur recuperation rendez-vous:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -597,7 +597,7 @@ app.get('/', (req, res) => {
         <div id="loginForm">
             <div class="logo">
                 <h1>Cabinet d'Avocats</h1>
-                <p>Connexion au système GTA5 RP</p>
+                <p>Connexion au systeme GTA5 RP</p>
             </div>
             <div id="loginMessage"></div>
             <form id="login">
@@ -621,11 +621,10 @@ app.get('/', (req, res) => {
             <div class="navbar">
                 <h2>Cabinet d'Avocats</h2>
                 <div class="nav-links">
-                    <button class="nav-link active" onclick="showSection('overview')">Aperçu</button>
-                    <button class="nav-link" onclick="showSection('employes')">Employés</button>
+                    <button class="nav-link active" onclick="showSection('overview')">Apercu</button>
                     <button class="nav-link" onclick="showSection('clients')">Clients</button>
                     <button class="nav-link" onclick="showSection('dossiers')">Dossiers</button>
-                    <button class="nav-link" onclick="logout()">Déconnexion</button>
+                    <button class="nav-link" onclick="logout()">Deconnexion</button>
                 </div>
             </div>
             
@@ -635,7 +634,7 @@ app.get('/', (req, res) => {
                         <div class="stat-card">
                             <div class="stat-icon">👥</div>
                             <div class="stat-number" id="employeCount">0</div>
-                            <div class="stat-label">Employés</div>
+                            <div class="stat-label">Employes</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-icon">🤝</div>
@@ -650,29 +649,29 @@ app.get('/', (req, res) => {
                         <div class="stat-card">
                             <div class="stat-icon">📅</div>
                             <div class="stat-number" id="rdvCount">0</div>
-                            <div class="stat-label">RDV à venir</div>
+                            <div class="stat-label">RDV a venir</div>
                         </div>
                     </div>
                     
                     <div class="welcome-card">
                         <div class="welcome-icon">🎉</div>
                         <h3>Bienvenue dans votre Cabinet d'Avocats !</h3>
-                        <p>Votre système de gestion est opérationnel.</p>
+                        <p>Votre systeme de gestion est operationnel.</p>
                     </div>
                 </div>
                 
                 <div id="employes" class="section" style="display: none;">
                     <div class="section-header">
-                        <h2>👥 Gestion des Employés</h2>
-                        <button class="btn btn-primary" onclick="toggleEmployeForm()">➕ Nouvel Employé</button>
+                        <h2>Gestion des Employes</h2>
+                        <button class="btn btn-primary" onclick="toggleEmployeForm()">Nouvel Employe</button>
                     </div>
                     
                     <div id="employeForm" class="form-card" style="display: none;">
-                        <h3>Ajouter un Employé</h3>
+                        <h3>Ajouter un Employe</h3>
                         <form id="newEmployeForm">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Prénom</label>
+                                    <label>Prenom</label>
                                     <input type="text" name="prenom" required>
                                 </div>
                                 <div class="form-group">
@@ -688,14 +687,14 @@ app.get('/', (req, res) => {
                                         <option value="Avocat Senior">Avocat Senior</option>
                                         <option value="Avocat Junior">Avocat Junior</option>
                                         <option value="Stagiaire">Stagiaire</option>
-                                        <option value="Secrétaire">Secrétaire</option>
+                                        <option value="Secretaire">Secretaire</option>
                                         <option value="Assistant juridique">Assistant juridique</option>
                                         <option value="Comptable">Comptable</option>
                                         <option value="Directeur">Directeur</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label>Numéro Employé</label>
+                                    <label>Numero Employe</label>
                                     <input type="text" name="numero_employe" placeholder="EMP001">
                                 </div>
                             </div>
@@ -720,27 +719,27 @@ app.get('/', (req, res) => {
                                 </div>
                             </div>
                             <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleEmployeForm()">❌ Annuler</button>
+                                <button type="submit" class="btn btn-primary">Enregistrer</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleEmployeForm()">Annuler</button>
                             </div>
                         </form>
                     </div>
                     
                     <div class="data-card">
                         <div class="data-header">
-                            <h3>Liste des Employés</h3>
-                            <button class="btn btn-secondary" onclick="loadEmployes()">🔄 Actualiser</button>
+                            <h3>Liste des Employes</h3>
+                            <button class="btn btn-secondary" onclick="loadEmployes()">Actualiser</button>
                         </div>
                         <div id="employeList" class="data-list">
-                            <p>Cliquez sur "Actualiser" pour charger les employés</p>
+                            <p>Cliquez sur "Actualiser" pour charger les employes</p>
                         </div>
                     </div>
                 </div>
                 
                 <div id="clients" class="section" style="display: none;">
                     <div class="section-header">
-                        <h2>🤝 Gestion des Clients</h2>
-                        <button class="btn btn-primary" onclick="toggleClientForm()">➕ Nouveau Client</button>
+                        <h2>Gestion des Clients</h2>
+                        <button class="btn btn-primary" onclick="toggleClientForm()">Nouveau Client</button>
                     </div>
                     
                     <div id="clientForm" class="form-card" style="display: none;">
@@ -748,7 +747,7 @@ app.get('/', (req, res) => {
                         <form id="newClientForm">
                             <div class="form-row">
                                 <div class="form-group">
-                                    <label>Prénom</label>
+                                    <label>Prenom</label>
                                     <input type="text" name="prenom" required>
                                 </div>
                                 <div class="form-group">
@@ -762,13 +761,13 @@ app.get('/', (req, res) => {
                                     <input type="email" name="email">
                                 </div>
                                 <div class="form-group">
-                                    <label>Téléphone</label>
+                                    <label>Telephone</label>
                                     <input type="tel" name="telephone">
                                 </div>
                             </div>
                             <div class="form-actions">
-                                <button type="submit" class="btn btn-primary">💾 Enregistrer</button>
-                                <button type="button" class="btn btn-secondary" onclick="toggleClientForm()">❌ Annuler</button>
+                                <button type="submit" class="btn btn-primary">Enregistrer</button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleClientForm()">Annuler</button>
                             </div>
                         </form>
                     </div>
@@ -776,7 +775,7 @@ app.get('/', (req, res) => {
                     <div class="data-card">
                         <div class="data-header">
                             <h3>Liste des Clients</h3>
-                            <button class="btn btn-secondary" onclick="loadClients()">🔄 Actualiser</button>
+                            <button class="btn btn-secondary" onclick="loadClients()">Actualiser</button>
                         </div>
                         <div id="clientList" class="data-list">
                             <p>Cliquez sur "Actualiser" pour charger les clients</p>
@@ -786,12 +785,12 @@ app.get('/', (req, res) => {
                 
                 <div id="dossiers" class="section" style="display: none;">
                     <div class="section-header">
-                        <h2>📁 Gestion des Dossiers</h2>
+                        <h2>Gestion des Dossiers</h2>
                     </div>
                     <div class="data-card">
                         <div class="data-header">
                             <h3>Liste des Dossiers</h3>
-                            <button class="btn btn-secondary" onclick="loadDossiers()">🔄 Actualiser</button>
+                            <button class="btn btn-secondary" onclick="loadDossiers()">Actualiser</button>
                         </div>
                         <div id="dossierList" class="data-list">
                             <p>Cliquez sur "Actualiser" pour charger les dossiers</p>
@@ -841,7 +840,7 @@ app.get('/', (req, res) => {
                     authToken = data.token;
                     localStorage.setItem('authToken', authToken);
                     localStorage.setItem('user', JSON.stringify(data.user));
-                    showMessage('Connexion réussie !', 'success');
+                    showMessage('Connexion reussie !', 'success');
                     setTimeout(function() {
                         showDashboard();
                         loadStats();
@@ -934,7 +933,7 @@ app.get('/', (req, res) => {
             });
             
             try {
-                showMessage('Création de l\\'employé...', 'loading');
+                showMessage('Creation de l\'employe...', 'loading');
                 const response = await fetch('/api/employes', {
                     method: 'POST',
                     headers: {
@@ -945,7 +944,7 @@ app.get('/', (req, res) => {
                 });
                 
                 if (response.ok) {
-                    showMessage('Employé créé avec succès !', 'success');
+                    showMessage('Employe cree avec succes !', 'success');
                     toggleEmployeForm();
                     loadEmployes();
                     loadStats();
@@ -967,7 +966,7 @@ app.get('/', (req, res) => {
             });
             
             try {
-                showMessage('Création du client...', 'loading');
+                showMessage('Creation du client...', 'loading');
                 const response = await fetch('/api/clients', {
                     method: 'POST',
                     headers: {
@@ -978,7 +977,7 @@ app.get('/', (req, res) => {
                 });
                 
                 if (response.ok) {
-                    showMessage('Client créé avec succès !', 'success');
+                    showMessage('Client cree avec succes !', 'success');
                     toggleClientForm();
                     loadClients();
                     loadStats();
@@ -1002,7 +1001,7 @@ app.get('/', (req, res) => {
                     const employeList = document.getElementById('employeList');
                     
                     if (employes.length === 0) {
-                        employeList.innerHTML = '<p>Aucun employé trouvé.</p>';
+                        employeList.innerHTML = '<p>Aucun employe trouve.</p>';
                     } else {
                         let html = '';
                         employes.forEach(function(employe) {
@@ -1012,10 +1011,10 @@ app.get('/', (req, res) => {
                             html += '<div style="color: #667eea; font-weight: bold;">' + employe.poste + '</div>';
                             html += '</div>';
                             html += '<div class="data-item-info">';
-                            html += '<strong>Salaire :</strong> 
-                 + parseFloat(employe.salaire_base).toLocaleString() + '<br>';
+                            html += '<strong>Salaire :</strong> ('employes')">Employes</button>
+                    <button class="nav-link" onclick="showSection + parseFloat(employe.salaire_base).toLocaleString() + '<br>';
                             html += '<strong>Date embauche :</strong> ' + employe.date_embauche + '<br>';
-                            if (employe.telephone) html += '<strong>Téléphone :</strong> ' + employe.telephone + '<br>';
+                            if (employe.telephone) html += '<strong>Telephone :</strong> ' + employe.telephone + '<br>';
                             if (employe.email) html += '<strong>Email :</strong> ' + employe.email;
                             html += '</div>';
                             html += '</div>';
@@ -1039,7 +1038,7 @@ app.get('/', (req, res) => {
                     const clientList = document.getElementById('clientList');
                     
                     if (clients.length === 0) {
-                        clientList.innerHTML = '<p>Aucun client trouvé.</p>';
+                        clientList.innerHTML = '<p>Aucun client trouve.</p>';
                     } else {
                         let html = '';
                         clients.forEach(function(client) {
@@ -1049,7 +1048,7 @@ app.get('/', (req, res) => {
                             html += '</div>';
                             html += '<div class="data-item-info">';
                             if (client.email) html += '<strong>Email :</strong> ' + client.email + '<br>';
-                            if (client.telephone) html += '<strong>Téléphone :</strong> ' + client.telephone + '<br>';
+                            if (client.telephone) html += '<strong>Telephone :</strong> ' + client.telephone + '<br>';
                             if (client.profession) html += '<strong>Profession :</strong> ' + client.profession;
                             html += '</div>';
                             html += '</div>';
@@ -1073,7 +1072,7 @@ app.get('/', (req, res) => {
                     const dossierList = document.getElementById('dossierList');
                     
                     if (dossiers.length === 0) {
-                        dossierList.innerHTML = '<p>Aucun dossier trouvé.</p>';
+                        dossierList.innerHTML = '<p>Aucun dossier trouve.</p>';
                     } else {
                         let html = '';
                         dossiers.forEach(function(dossier) {
@@ -1083,7 +1082,7 @@ app.get('/', (req, res) => {
                             html += '<div style="color: #667eea; font-weight: bold;">' + dossier.statut + '</div>';
                             html += '</div>';
                             html += '<div class="data-item-info">';
-                            html += '<strong>Numéro :</strong> ' + dossier.numero_dossier + '<br>';
+                            html += '<strong>Numero :</strong> ' + dossier.numero_dossier + '<br>';
                             if (dossier.nom) html += '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>';
                             if (dossier.type_affaire) html += '<strong>Type :</strong> ' + dossier.type_affaire;
                             html += '</div>';
@@ -1106,7 +1105,7 @@ app.get('/', (req, res) => {
 </body>
 </html>`);
 
-// Route de vérification de santé
+// Route de verification de sante
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
@@ -1118,18 +1117,18 @@ app.use((error, req, res, next) => {
 });
 
 app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route non trouvée' });
+  res.status(404).json({ error: 'Route non trouvee' });
 });
 
-// Démarrage du serveur
+// Demarrage du serveur
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Cabinet d'Avocats démarré sur le port ${PORT}`);
-  console.log(`🌐 Environnement: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Interface: http://localhost:${PORT}`);
+  console.log(`Cabinet d'Avocats demarre sur le port ${PORT}`);
+  console.log(`Environnement: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Interface: http://localhost:${PORT}`);
 });
 
-// Gestion des erreurs non capturées
+// Gestion des erreurs non capturees
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -1137,4 +1136,5 @@ process.on('unhandledRejection', (reason, promise) => {
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   process.exit(1);
-});
+});('employes')">Employes</button>
+                    <button class="nav-link" onclick="showSection

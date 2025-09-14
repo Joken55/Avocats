@@ -1,4 +1,483 @@
-const express = require('express');
+}
+        
+        // Mise a jour des selects de clients
+        function updateClientSelects() {
+            const selects = ['dossierClient', 'rdvClient'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    select.innerHTML = '<option value="">Selectionner un client</option>' +
+                        clients.map(client => 
+                            '<option value="' + client.id + '">' + client.prenom + ' ' + client.nom + '</option>'
+                        ).join('');
+                }
+            });
+        }
+        
+        // Chargement des dossiers
+        async function loadDossiers() {
+            try {
+                const response = await fetch('/api/dossiers', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                
+                if (response.ok) {
+                    dossiers = await response.json();
+                    displayDossiers();
+                    updateDossierSelects();
+                } else {
+                    console.error('Erreur chargement dossiers');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        // Affichage des dossiers
+        function displayDossiers() {
+            const dossiersList = document.getElementById('dossiersList');
+            
+            if (dossiers.length === 0) {
+                dossiersList.innerHTML = '<p>Aucun dossier enregistre.</p>';
+                return;
+            }
+            
+            dossiersList.innerHTML = dossiers.map(dossier => 
+                '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + dossier.titre + '</div>' +
+                        '<span style="color: #667eea; font-weight: bold;">' + (dossier.statut || 'ouvert') + '</span>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        '<strong>Numero :</strong> ' + dossier.numero_dossier + '<br>' +
+                        (dossier.nom ? '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' : '') +
+                        (dossier.type_affaire ? '<strong>Type :</strong> ' + dossier.type_affaire + '<br>' : '') +
+                        (dossier.avocat_responsable ? '<strong>Avocat :</strong> ' + dossier.avocat_responsable : '') +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-secondary btn-sm" onclick="editDossier(' + dossier.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteDossier(' + dossier.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
+        }
+        
+        // Mise a jour des selects de dossiers
+        function updateDossierSelects() {
+            const select = document.getElementById('rdvDossier');
+            if (select) {
+                select.innerHTML = '<option value="">Aucun dossier</option>' +
+                    dossiers.map(dossier => 
+                        '<option value="' + dossier.id + '">' + dossier.numero_dossier + ' - ' + dossier.titre + '</option>'
+                    ).join('');
+            }
+        }
+        
+        // Chargement des rendez-vous
+        async function loadRendezVous() {
+            try {
+                const response = await fetch('/api/rendez-vous', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                
+                if (response.ok) {
+                    rendezVous = await response.json();
+                    displayRendezVous();
+                } else {
+                    console.error('Erreur chargement rendez-vous');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        // Affichage des rendez-vous
+        function displayRendezVous() {
+            const rdvList = document.getElementById('rdvList');
+            
+            if (rendezVous.length === 0) {
+                rdvList.innerHTML = '<p>Aucun rendez-vous programme.</p>';
+                return;
+            }
+            
+            rdvList.innerHTML = rendezVous.map(rdv => {
+                const dateRdv = new Date(rdv.date_rdv);
+                const dateStr = dateRdv.toLocaleDateString('fr-FR');
+                const timeStr = dateRdv.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+                
+                return '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + rdv.titre + '</div>' +
+                        '<span style="color: #667eea; font-weight: bold;">' + dateStr + ' ' + timeStr + '</span>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        (rdv.nom ? '<strong>Client :</strong> ' + rdv.prenom + ' ' + rdv.nom + '<br>' : '') +
+                        (rdv.dossier_titre ? '<strong>Dossier :</strong> ' + rdv.dossier_titre + '<br>' : '') +
+                        (rdv.lieu ? '<strong>Lieu :</strong> ' + rdv.lieu + '<br>' : '') +
+                        '<strong>Duree :</strong> ' + (rdv.duree || 60) + ' minutes' +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-secondary btn-sm" onclick="editRdv(' + rdv.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteRdv(' + rdv.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+        
+        // === GESTION DES MODALS ===
+        
+        // Modal Client
+        function openClientModal(clientId = null) {
+            const modal = document.getElementById('clientModal');
+            const title = document.getElementById('clientModalTitle');
+            const form = document.getElementById('clientForm');
+            
+            if (clientId) {
+                const client = clients.find(c => c.id == clientId);
+                if (client) {
+                    title.textContent = 'Modifier Client';
+                    document.getElementById('clientId').value = client.id;
+                    document.getElementById('clientPrenom').value = client.prenom || '';
+                    document.getElementById('clientNom').value = client.nom || '';
+                    document.getElementById('clientEmail').value = client.email || '';
+                    document.getElementById('clientTelephone').value = client.telephone || '';
+                    document.getElementById('clientAdresse').value = client.adresse || '';
+                    document.getElementById('clientDateNaissance').value = client.date_naissance || '';
+                    document.getElementById('clientProfession').value = client.profession || '';
+                    document.getElementById('clientNotes').value = client.notes || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Client';
+                form.reset();
+                document.getElementById('clientId').value = '';
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('active');
+        }
+        
+        // Modal Dossier
+        function openDossierModal(dossierId = null) {
+            const modal = document.getElementById('dossierModal');
+            const title = document.getElementById('dossierModalTitle');
+            const form = document.getElementById('dossierForm');
+            
+            updateClientSelects(); // Mettre a jour la liste des clients
+            
+            if (dossierId) {
+                const dossier = dossiers.find(d => d.id == dossierId);
+                if (dossier) {
+                    title.textContent = 'Modifier Dossier';
+                    document.getElementById('dossierId').value = dossier.id;
+                    document.getElementById('dossierNumero').value = dossier.numero_dossier || '';
+                    document.getElementById('dossierClient').value = dossier.client_id || '';
+                    document.getElementById('dossierTitre').value = dossier.titre || '';
+                    document.getElementById('dossierDescription').value = dossier.description || '';
+                    document.getElementById('dossierType').value = dossier.type_affaire || '';
+                    document.getElementById('dossierPriorite').value = dossier.priorite || 'normale';
+                    document.getElementById('dossierAvocat').value = dossier.avocat_responsable || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Dossier';
+                form.reset();
+                document.getElementById('dossierId').value = '';
+                // Generer automatiquement un numero de dossier
+                const nextNumber = String(dossiers.length + 1).padStart(4, '0');
+                document.getElementById('dossierNumero').value = 'DOS-' + nextNumber;
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        function closeDossierModal() {
+            document.getElementById('dossierModal').classList.remove('active');
+        }
+        
+        // Modal Rendez-vous
+        function openRdvModal(rdvId = null) {
+            const modal = document.getElementById('rdvModal');
+            const title = document.getElementById('rdvModalTitle');
+            const form = document.getElementById('rdvForm');
+            
+            updateClientSelects();
+            updateDossierSelects();
+            
+            if (rdvId) {
+                const rdv = rendezVous.find(r => r.id == rdvId);
+                if (rdv) {
+                    title.textContent = 'Modifier Rendez-vous';
+                    document.getElementById('rdvId').value = rdv.id;
+                    document.getElementById('rdvTitre').value = rdv.titre || '';
+                    document.getElementById('rdvClient').value = rdv.client_id || '';
+                    document.getElementById('rdvDossier').value = rdv.dossier_id || '';
+                    document.getElementById('rdvDate').value = rdv.date_rdv ? rdv.date_rdv.slice(0, 16) : '';
+                    document.getElementById('rdvDuree').value = rdv.duree || 60;
+                    document.getElementById('rdvLieu').value = rdv.lieu || '';
+                    document.getElementById('rdvDescription').value = rdv.description || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Rendez-vous';
+                form.reset();
+                document.getElementById('rdvId').value = '';
+                document.getElementById('rdvDuree').value = 60;
+            }
+            
+            modal.classList.add('active');
+        }
+        
+        function closeRdvModal() {
+            document.getElementById('rdvModal').classList.remove('active');
+        }
+        
+        // === GESTION DES FORMULAIRES ===
+        
+        // Formulaire Client
+        document.getElementById('clientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const clientId = document.getElementById('clientId').value;
+            const formData = new FormData(e.target);
+            const clientData = {};
+            
+            formData.forEach((value, key) => {
+                clientData[key] = value || null;
+            });
+            
+            try {
+                const url = clientId ? '/api/clients/' + clientId : '/api/clients';
+                const method = clientId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(clientData)
+                });
+                
+                if (response.ok) {
+                    closeClientModal();
+                    await loadClients();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        // Formulaire Dossier
+        document.getElementById('dossierForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const dossierId = document.getElementById('dossierId').value;
+            const formData = new FormData(e.target);
+            const dossierData = {};
+            
+            formData.forEach((value, key) => {
+                dossierData[key] = value || null;
+            });
+            
+            try {
+                const url = dossierId ? '/api/dossiers/' + dossierId : '/api/dossiers';
+                const method = dossierId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(dossierData)
+                });
+                
+                if (response.ok) {
+                    closeDossierModal();
+                    await loadDossiers();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        // Formulaire Rendez-vous
+        document.getElementById('rdvForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const rdvId = document.getElementById('rdvId').value;
+            const formData = new FormData(e.target);
+            const rdvData = {};
+            
+            formData.forEach((value, key) => {
+                rdvData[key] = value || null;
+            });
+            
+            try {
+                const url = rdvId ? '/api/rendez-vous/' + rdvId : '/api/rendez-vous';
+                const method = rdvId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(rdvData)
+                });
+                
+                if (response.ok) {
+                    closeRdvModal();
+                    await loadRendezVous();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        // === FONCTIONS D'EDITION ===
+        
+        function editClient(clientId) {
+            openClientModal(clientId);
+        }
+        
+        function editDossier(dossierId) {
+            openDossierModal(dossierId);
+        }
+        
+        function editRdv(rdvId) {
+            openRdvModal(rdvId);
+        }
+        
+        // === FONCTIONS DE SUPPRESSION ===
+        
+        async function deleteClient(clientId) {
+            if (confirm('Etes-vous sur de vouloir supprimer ce client ?')) {
+                try {
+                    const response = await fetch('/api/clients/' + clientId, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    
+                    if (response.ok) {
+                        await loadClients();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        async function deleteDossier(dossierId) {
+            if (confirm('Etes-vous sur de vouloir supprimer ce dossier ?')) {
+                try {
+                    const response = await fetch('/api/dossiers/' + dossierId, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    
+                    if (response.ok) {
+                        await loadDossiers();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        async function deleteRdv(rdvId) {
+            if (confirm('Etes-vous sur de vouloir supprimer ce rendez-vous ?')) {
+                try {
+                    const response = await fetch('/api/rendez-vous/' + rdvId, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    
+                    if (response.ok) {
+                        await loadRendezVous();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        // Deconnexion
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            location.reload();
+        }
+        
+        // Fermeture des modals en cliquant en dehors
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>
+  `);
+});
+
+// Route de verification de sante
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Gestion des erreurs
+app.use((error, req, res, next) => {
+  console.error('Erreur serveur:', error);
+  res.status(500).json({ error: 'Erreur interne du serveur' });
+});
+
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Route non trouvee' });
+});
+
+// Demarrage du serveur
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Cabinet d'Avocats demarre sur le port ${PORT}`);
+  console.log(`Environnement: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`Interface: http://localhost:${PORT}`);
+});
+
+// Gestion des erreurs non capturees
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});const express = require('express');
 const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -40,7 +519,7 @@ const getDbConfig = () => {
 
 const pool = new Pool(getDbConfig());
 
-// Middlewares de sécurité (adaptés pour Railway)
+// Middlewares de sécurité
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -66,12 +545,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
-// Simple rate limiting middleware (custom)
+// Simple rate limiting middleware
 const simpleRateLimit = new Map();
 const rateLimitMiddleware = (req, res, next) => {
   const ip = req.ip || req.connection.remoteAddress || 'unknown';
   const now = Date.now();
-  const windowMs = 15 * 60 * 1000; // 15 minutes
+  const windowMs = 15 * 60 * 1000;
   const maxRequests = 100;
   
   if (!simpleRateLimit.has(ip)) {
@@ -88,7 +567,7 @@ const rateLimitMiddleware = (req, res, next) => {
   }
   
   if (record.count >= maxRequests) {
-    return res.status(429).json({ error: 'Trop de requêtes' });
+    return res.status(429).json({ error: 'Trop de requetes' });
   }
   
   record.count++;
@@ -101,7 +580,7 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: 'Token d\'accès requis' });
+    return res.status(401).json({ error: 'Token d\'acces requis' });
   }
 
   jwt.verify(token, process.env.JWT_SECRET || 'default-secret', (err, user) => {
@@ -113,63 +592,54 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Routes de debug (temporaires)
+// Routes de debug
 app.get('/debug-env', (req, res) => {
   const config = getDbConfig();
   res.json({
-    'Variables ENV détectées': {
-      PGHOST: process.env.PGHOST || '❌ Non défini',
-      PGPORT: process.env.PGPORT || '❌ Non défini',
-      PGDATABASE: process.env.PGDATABASE || '❌ Non défini',
-      PGUSER: process.env.PGUSER || '❌ Non défini',
-      PGPASSWORD: process.env.PGPASSWORD ? '✅ Défini (masqué)' : '❌ Non défini',
-      DATABASE_URL: process.env.DATABASE_URL ? '✅ Défini (masqué)' : '❌ Non défini'
+    'Variables ENV detectees': {
+      PGHOST: process.env.PGHOST || 'Non defini',
+      PGPORT: process.env.PGPORT || 'Non defini',
+      PGDATABASE: process.env.PGDATABASE || 'Non defini',
+      PGUSER: process.env.PGUSER || 'Non defini',
+      PGPASSWORD: process.env.PGPASSWORD ? 'Defini (masque)' : 'Non defini',
+      DATABASE_URL: process.env.DATABASE_URL ? 'Defini (masque)' : 'Non defini'
     },
-    'Configuration utilisée par le code': {
+    'Configuration utilisee par le code': {
       host: config.host || config.connectionString,
       port: config.port,
       database: config.database,
       user: config.user,
-      ssl: config.ssl ? '✅ Activé' : '❌ Désactivé'
+      ssl: config.ssl ? 'Active' : 'Desactive'
     },
-    'NODE_ENV': process.env.NODE_ENV || 'non défini',
-    'RAILWAY_ENVIRONMENT': process.env.RAILWAY_ENVIRONMENT || 'non défini'
+    'NODE_ENV': process.env.NODE_ENV || 'non defini',
+    'RAILWAY_ENVIRONMENT': process.env.RAILWAY_ENVIRONMENT || 'non defini'
   });
 });
 
 app.get('/debug-db', async (req, res) => {
   try {
-    console.log('🔍 Test de connexion DB...');
+    console.log('Test de connexion DB...');
     const config = getDbConfig();
-    console.log('📊 Configuration DB utilisée:', {
-      host: config.host || 'via connectionString',
-      port: config.port,
-      database: config.database,
-      user: config.user,
-      ssl: !!config.ssl
-    });
     
     const client = await pool.connect();
-    console.log('✅ Connexion au pool réussie');
+    console.log('Connexion au pool reussie');
     
-    // Test simple
     const testResult = await client.query('SELECT NOW() as current_time');
-    console.log('✅ Requête test réussie:', testResult.rows[0]);
+    console.log('Requete test reussie:', testResult.rows[0]);
     
-    // Vérifier les tables
     const tables = await client.query(`
       SELECT table_name 
       FROM information_schema.tables 
       WHERE table_schema = 'public'
     `);
-    console.log('📋 Tables trouvées:', tables.rows.length);
+    console.log('Tables trouvees:', tables.rows.length);
     
     client.release();
     
     res.json({ 
-      status: '✅ DB connectée',
+      status: 'DB connectee',
       config: {
-        host: config.host || 'connectionString utilisé',
+        host: config.host || 'connectionString utilise',
         port: config.port,
         database: config.database,
         ssl: !!config.ssl
@@ -178,9 +648,9 @@ app.get('/debug-db', async (req, res) => {
       tables: tables.rows.map(t => t.table_name) 
     });
   } catch (error) {
-    console.error('💥 Erreur debug-db:', error);
+    console.error('Erreur debug-db:', error);
     res.status(500).json({ 
-      status: '❌ Erreur DB', 
+      status: 'Erreur DB', 
       error: error.message,
       code: error.code,
       config_used: getDbConfig()
@@ -197,43 +667,10 @@ app.get('/debug-users', async (req, res) => {
   }
 });
 
-app.post('/create-admin', async (req, res) => {
-  try {
-    const existingAdmin = await pool.query("SELECT * FROM users WHERE email = 'admin@cabinet.com'");
-    
-    if (existingAdmin.rows.length > 0) {
-      return res.json({ 
-        message: 'Admin déjà existant', 
-        admin: existingAdmin.rows[0].email 
-      });
-    }
-
-    const passwordHash = await bcrypt.hash('admin123', 10);
-    
-    const result = await pool.query(`
-      INSERT INTO users (username, email, password_hash, role, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      RETURNING id, username, email, role
-    `, ['admin', 'admin@cabinet.com', passwordHash, 'admin']);
-    
-    res.json({ 
-      message: '✅ Admin créé avec succès!', 
-      user: result.rows[0] 
-    });
-    
-  } catch (error) {
-    console.error('Erreur création admin:', error);
-    res.status(500).json({ 
-      error: 'Erreur lors de la création', 
-      details: error.message 
-    });
-  }
-});
-
 // Route pour créer toutes les tables
 app.post('/setup-tables', async (req, res) => {
   try {
-    console.log('📋 Création des tables...');
+    console.log('Creation des tables...');
 
     // Table des utilisateurs
     await pool.query(`
@@ -340,7 +777,7 @@ app.post('/setup-tables', async (req, res) => {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_documents_dossier ON documents(dossier_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_notes_dossier ON notes(dossier_id)');
 
-    console.log('✅ Tables créées avec succès');
+    console.log('Tables creees avec succes');
 
     // Créer l'admin par défaut
     const existingAdmin = await pool.query("SELECT * FROM users WHERE email = 'admin@cabinet.com'");
@@ -353,11 +790,11 @@ app.post('/setup-tables', async (req, res) => {
         VALUES ($1, $2, $3, $4)
       `, ['admin', 'admin@cabinet.com', passwordHash, 'admin']);
       
-      console.log('✅ Utilisateur admin créé');
+      console.log('Utilisateur admin cree');
     }
 
     res.json({ 
-      message: '✅ Setup terminé avec succès!',
+      message: 'Setup termine avec succes!',
       tables_created: ['users', 'clients', 'dossiers', 'rendez_vous', 'documents', 'notes'],
       admin_created: existingAdmin.rows.length === 0
     });
@@ -376,53 +813,50 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    console.log('🔐 Tentative de connexion pour:', email);
-    console.log('📝 Corps de la requête:', req.body);
+    console.log('Tentative de connexion pour:', email);
     
-    // Vérifier que les paramètres sont présents
     if (!email || !password) {
-      console.log('❌ Email ou mot de passe manquant');
+      console.log('Email ou mot de passe manquant');
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
     
-    console.log('📊 Recherche utilisateur dans la DB...');
+    console.log('Recherche utilisateur dans la DB...');
     
-    // Ajouter un timeout à la requête
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Timeout requête DB')), 15000); // 15 secondes
+      setTimeout(() => reject(new Error('Timeout requete DB')), 15000);
     });
     
     const queryPromise = pool.query('SELECT * FROM users WHERE email = $1', [email]);
     
     const result = await Promise.race([queryPromise, timeoutPromise]);
-    console.log('📊 Résultat requête:', result.rows.length, 'utilisateur(s) trouvé(s)');
+    console.log('Resultat requete:', result.rows.length, 'utilisateur(s) trouve(s)');
     
     const user = result.rows[0];
     
     if (!user) {
-      console.log('❌ Utilisateur non trouvé:', email);
-      return res.status(401).json({ error: 'Utilisateur non trouvé. Vérifiez que l\'admin a été créé.' });
+      console.log('Utilisateur non trouve:', email);
+      return res.status(401).json({ error: 'Utilisateur non trouve. Verifiez que l\'admin a ete cree.' });
     }
     
-    console.log('👤 Utilisateur trouvé:', user.email, 'role:', user.role);
-    console.log('🔑 Vérification du mot de passe...');
+    console.log('Utilisateur trouve:', user.email, 'role:', user.role);
+    console.log('Verification du mot de passe...');
     
     const passwordMatch = await bcrypt.compare(password, user.password_hash);
-    console.log('🔑 Mot de passe valide:', passwordMatch);
+    console.log('Mot de passe valide:', passwordMatch);
     
     if (!passwordMatch) {
-      console.log('❌ Mot de passe incorrect pour:', email);
+      console.log('Mot de passe incorrect pour:', email);
       return res.status(401).json({ error: 'Mot de passe incorrect' });
     }
     
-    console.log('🎟️ Génération du token...');
+    console.log('Generation du token...');
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || 'default-secret',
       { expiresIn: '24h' }
     );
     
-    console.log('✅ Connexion réussie pour:', email);
+    console.log('Connexion reussie pour:', email);
     
     res.json({
       token,
@@ -434,109 +868,8 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('💥 Erreur login:', error);
+    console.error('Erreur login:', error);
     res.status(500).json({ error: 'Erreur serveur: ' + error.message });
-  }
-});
-
-// Routes API - Employés
-app.get('/api/employes', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM employes ORDER BY nom, prenom');
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Erreur récupération employés:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.post('/api/employes', authenticateToken, async (req, res) => {
-  try {
-    const { 
-      nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
-      anciennete_annees, anciennete_mois, date_embauche, numero_employe,
-      telephone, email, adresse, statut, notes 
-    } = req.body;
-    
-    const result = await pool.query(
-      `INSERT INTO employes (
-        nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
-        anciennete_annees, anciennete_mois, date_embauche, numero_employe,
-        telephone, email, adresse, statut, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
-      [nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
-       anciennete_annees, anciennete_mois, date_embauche, numero_employe,
-       telephone, email, adresse, statut, notes]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur création employé:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.get('/api/employes/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('SELECT * FROM employes WHERE id = $1', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Employé non trouvé' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur récupération employé:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.put('/api/employes/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { 
-      nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
-      anciennete_annees, anciennete_mois, date_embauche, numero_employe,
-      telephone, email, adresse, statut, notes 
-    } = req.body;
-    
-    const result = await pool.query(
-      `UPDATE employes SET 
-        nom = $1, prenom = $2, poste = $3, salaire_base = $4, salaire_maximum = $5, 
-        commissions = $6, anciennete_annees = $7, anciennete_mois = $8, 
-        date_embauche = $9, numero_employe = $10, telephone = $11, email = $12, 
-        adresse = $13, statut = $14, notes = $15, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $16 RETURNING *`,
-      [nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
-       anciennete_annees, anciennete_mois, date_embauche, numero_employe,
-       telephone, email, adresse, statut, notes, id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Employé non trouvé' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Erreur mise à jour employé:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.delete('/api/employes/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('DELETE FROM employes WHERE id = $1 RETURNING id', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Employé non trouvé' });
-    }
-    
-    res.json({ message: 'Employé supprimé avec succès' });
-  } catch (error) {
-    console.error('Erreur suppression employé:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -546,7 +879,7 @@ app.get('/api/clients', authenticateToken, async (req, res) => {
     const result = await pool.query('SELECT * FROM clients ORDER BY created_at DESC');
     res.json(result.rows);
   } catch (error) {
-    console.error('Erreur récupération clients:', error);
+    console.error('Erreur recuperation clients:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -562,7 +895,64 @@ app.post('/api/clients', authenticateToken, async (req, res) => {
     
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Erreur création client:', error);
+    console.error('Erreur creation client:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.get('/api/clients/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM clients WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Client non trouve' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur recuperation client:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.put('/api/clients/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nom, prenom, email, telephone, adresse, date_naissance, profession, notes } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE clients SET 
+        nom = $1, prenom = $2, email = $3, telephone = $4, 
+        adresse = $5, date_naissance = $6, profession = $7, notes = $8, 
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $9 RETURNING *`,
+      [nom, prenom, email, telephone, adresse, date_naissance, profession, notes, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Client non trouve' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur mise a jour client:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.delete('/api/clients/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM clients WHERE id = $1 RETURNING id', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Client non trouve' });
+    }
+    
+    res.json({ message: 'Client supprime avec succes' });
+  } catch (error) {
+    console.error('Erreur suppression client:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -578,7 +968,85 @@ app.get('/api/dossiers', authenticateToken, async (req, res) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Erreur récupération dossiers:', error);
+    console.error('Erreur recuperation dossiers:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.post('/api/dossiers', authenticateToken, async (req, res) => {
+  try {
+    const { numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite } = req.body;
+    
+    const result = await pool.query(
+      'INSERT INTO dossiers (numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur creation dossier:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.get('/api/dossiers/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT d.*, c.nom, c.prenom 
+      FROM dossiers d 
+      LEFT JOIN clients c ON d.client_id = c.id 
+      WHERE d.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Dossier non trouve' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur recuperation dossier:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.put('/api/dossiers/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { numero_dossier, client_id, titre, description, type_affaire, statut, avocat_responsable, priorite } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE dossiers SET 
+        numero_dossier = $1, client_id = $2, titre = $3, description = $4, 
+        type_affaire = $5, statut = $6, avocat_responsable = $7, priorite = $8, 
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $9 RETURNING *`,
+      [numero_dossier, client_id, titre, description, type_affaire, statut, avocat_responsable, priorite, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Dossier non trouve' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur mise a jour dossier:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.delete('/api/dossiers/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM dossiers WHERE id = $1 RETURNING id', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Dossier non trouve' });
+    }
+    
+    res.json({ message: 'Dossier supprime avec succes' });
+  } catch (error) {
+    console.error('Erreur suppression dossier:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -595,12 +1063,28 @@ app.get('/api/rendez-vous', authenticateToken, async (req, res) => {
     `);
     res.json(result.rows);
   } catch (error) {
-    console.error('Erreur récupération rendez-vous:', error);
+    console.error('Erreur recuperation rendez-vous:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
-// Route principale - Interface web
+app.post('/api/rendez-vous', authenticateToken, async (req, res) => {
+  try {
+    const { client_id, dossier_id, titre, description, date_rdv, duree, lieu } = req.body;
+    
+    const result = await pool.query(
+      'INSERT INTO rendez_vous (client_id, dossier_id, titre, description, date_rdv, duree, lieu) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [client_id, dossier_id, titre, description, date_rdv, duree, lieu]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur creation rendez-vous:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Route principale - Interface web complète
 app.get('/', (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -620,14 +1104,30 @@ app.get('/', (req, res) => {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            margin: 20px auto;
+            border-radius: 15px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 95%;
+            max-width: 1200px;
+            overflow: hidden;
+        }
+        
+        .login-container {
+            padding: 3rem;
+            text-align: center;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         
-        .container {
+        .login-box {
             background: white;
-            padding: 2rem;
+            padding: 3rem;
             border-radius: 15px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
             width: 100%;
@@ -635,23 +1135,23 @@ app.get('/', (req, res) => {
         }
         
         .logo {
-            text-align: center;
             margin-bottom: 2rem;
         }
         
         .logo h1 {
             color: #2d3748;
-            font-size: 1.8rem;
+            font-size: 2rem;
             margin-bottom: 0.5rem;
         }
         
         .logo p {
             color: #718096;
-            font-size: 0.9rem;
+            font-size: 1rem;
         }
         
         .form-group {
             margin-bottom: 1.5rem;
+            text-align: left;
         }
         
         label {
@@ -661,7 +1161,7 @@ app.get('/', (req, res) => {
             font-weight: 500;
         }
         
-        input[type="email"], input[type="password"] {
+        input, select, textarea {
             width: 100%;
             padding: 0.75rem;
             border: 2px solid #e2e8f0;
@@ -670,26 +1170,58 @@ app.get('/', (req, res) => {
             transition: border-color 0.3s;
         }
         
-        input[type="email"]:focus, input[type="password"]:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #667eea;
         }
         
         .btn {
-            width: 100%;
-            padding: 0.75rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            padding: 0.75rem 1.5rem;
             border: none;
             border-radius: 8px;
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: transform 0.2s;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
         }
         
-        .btn:hover {
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            width: 100%;
+        }
+        
+        .btn-primary:hover {
             transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+        }
+        
+        .btn-secondary:hover {
+            background: #edf2f7;
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
         }
         
         .test-accounts {
@@ -697,7 +1229,7 @@ app.get('/', (req, res) => {
             padding: 1rem;
             background: #f7fafc;
             border-radius: 8px;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             color: #4a5568;
         }
         
@@ -715,19 +1247,25 @@ app.get('/', (req, res) => {
         }
         
         .navbar {
-            background: #2d3748;
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
             color: white;
-            padding: 1rem;
-            margin: -2rem -2rem 2rem -2rem;
-            border-radius: 15px 15px 0 0;
+            padding: 1.5rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        .navbar h2 {
+            margin: 0;
+            font-size: 1.5rem;
         }
         
         .nav-links {
             display: flex;
-            gap: 1rem;
+            gap: 0.5rem;
+            flex-wrap: wrap;
         }
         
         .nav-link {
@@ -735,356 +1273,13 @@ app.get('/', (req, res) => {
             background: rgba(255,255,255,0.1);
             border: none;
             color: white;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
-            text-decoration: none;
             font-size: 0.9rem;
+            transition: all 0.3s;
         }
         
         .nav-link:hover, .nav-link.active {
             background: rgba(255,255,255,0.2);
+            transform: translateY(-1px);
         }
-        
-        .content {
-            min-height: 400px;
-        }
-        
-        .card {
-            background: #f8f9fa;
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        
-        .card h3 {
-            color: #2d3748;
-            margin-bottom: 1rem;
-        }
-        
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            color: #718096;
-            font-size: 0.9rem;
-        }
-        
-        .error {
-            background: #fed7d7;
-            color: #c53030;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-        
-        .success {
-            background: #c6f6d5;
-            color: #2f855a;
-            padding: 0.75rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- Formulaire de connexion -->
-        <div id="loginForm">
-            <div class="logo">
-                <h1>🏛️ Cabinet d'Avocats</h1>
-                <p>Connexion au système GTA5 RP</p>
-            </div>
-            
-            <div id="loginMessage"></div>
-            
-            <form id="login">
-                <div class="form-group">
-                    <label for="email">Email :</label>
-                    <input type="email" id="email" name="email" value="admin@cabinet.com" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="password">Mot de passe :</label>
-                    <input type="password" id="password" name="password" value="admin123" required>
-                </div>
-                
-                <button type="submit" class="btn">Se connecter</button>
-            </form>
-            
-            <div class="test-accounts">
-                <h3>Compte de test :</h3>
-                <strong>admin@cabinet.com</strong> / <strong>admin123</strong>
-            </div>
-        </div>
-        
-        <!-- Dashboard -->
-        <div id="dashboard" class="dashboard">
-            <div class="navbar">
-                <h2>📋 Dashboard</h2>
-                <div class="nav-links">
-                    <button class="nav-link active" onclick="showSection('overview')">Aperçu</button>
-                    <button class="nav-link" onclick="showSection('clients')">Clients</button>
-                    <button class="nav-link" onclick="showSection('dossiers')">Dossiers</button>
-                    <button class="nav-link" onclick="logout()">Déconnexion</button>
-                </div>
-            </div>
-            
-            <div class="content">
-                <div id="overview" class="section">
-                    <div class="stats">
-                        <div class="stat-card">
-                            <div class="stat-number" id="clientCount">0</div>
-                            <div class="stat-label">Clients</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number" id="dossierCount">0</div>
-                            <div class="stat-label">Dossiers</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number" id="rdvCount">0</div>
-                            <div class="stat-label">RDV à venir</div>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <h3>🎉 Bienvenue dans votre Cabinet d'Avocats !</h3>
-                        <p>Votre système de gestion est opérationnel.</p>
-                    </div>
-                </div>
-                
-                <div id="clients" class="section" style="display: none;">
-                    <div class="card">
-                        <h3>👥 Gestion des Clients</h3>
-                        <button class="btn" onclick="loadClients()">Charger les clients</button>
-                        <div id="clientList"></div>
-                    </div>
-                </div>
-                
-                <div id="dossiers" class="section" style="display: none;">
-                    <div class="card">
-                        <h3>📁 Gestion des Dossiers</h3>
-                        <button class="btn" onclick="loadDossiers()">Charger les dossiers</button>
-                        <div id="dossierList"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let authToken = localStorage.getItem('authToken');
-        
-        function showMessage(message, type = 'error') {
-            const messageDiv = document.getElementById('loginMessage');
-            messageDiv.innerHTML = \`<div class="\${type}">\${message}</div>\`;
-            setTimeout(() => messageDiv.innerHTML = '', 5000);
-        }
-        
-        if (authToken) {
-            showDashboard();
-        }
-        
-        document.getElementById('login').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            try {
-                showMessage('Connexion en cours...', 'success');
-                
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ email, password })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    authToken = data.token;
-                    localStorage.setItem('authToken', authToken);
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    showMessage('Connexion réussie !', 'success');
-                    setTimeout(() => {
-                        showDashboard();
-                        loadStats();
-                    }, 1000);
-                } else {
-                    showMessage('Erreur: ' + data.error);
-                }
-            } catch (error) {
-                showMessage('Erreur de connexion: ' + error.message);
-                console.error('Erreur:', error);
-            }
-        });
-        
-        function showDashboard() {
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('dashboard').classList.add('active');
-        }
-        
-        function showSection(sectionName) {
-            document.querySelectorAll('.section').forEach(section => {
-                section.style.display = 'none';
-            });
-            
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            
-            document.getElementById(sectionName).style.display = 'block';
-            event.target.classList.add('active');
-        }
-        
-        async function loadStats() {
-            try {
-                const [clientsResponse, dossiersResponse, rdvResponse] = await Promise.all([
-                    fetch('/api/clients', { headers: { 'Authorization': 'Bearer ' + authToken } }),
-                    fetch('/api/dossiers', { headers: { 'Authorization': 'Bearer ' + authToken } }),
-                    fetch('/api/rendez-vous', { headers: { 'Authorization': 'Bearer ' + authToken } })
-                ]);
-                
-                if (clientsResponse.ok) {
-                    const clients = await clientsResponse.json();
-                    document.getElementById('clientCount').textContent = clients.length;
-                }
-                
-                if (dossiersResponse.ok) {
-                    const dossiers = await dossiersResponse.json();
-                    document.getElementById('dossierCount').textContent = dossiers.length;
-                }
-                
-                if (rdvResponse.ok) {
-                    const rdvs = await rdvResponse.json();
-                    document.getElementById('rdvCount').textContent = rdvs.length;
-                }
-            } catch (error) {
-                console.error('Erreur chargement stats:', error);
-            }
-        }
-        
-        async function loadClients() {
-            try {
-                const response = await fetch('/api/clients', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                
-                if (response.ok) {
-                    const clients = await response.json();
-                    const clientList = document.getElementById('clientList');
-                    
-                    if (clients.length === 0) {
-                        clientList.innerHTML = '<p>Aucun client trouvé.</p>';
-                    } else {
-                        clientList.innerHTML = clients.map(client => \`
-                            <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin: 0.5rem 0;">
-                                <strong>\${client.prenom} \${client.nom}</strong><br>
-                                📧 \${client.email || 'N/A'}<br>
-                                📞 \${client.telephone || 'N/A'}
-                            </div>
-                        \`).join('');
-                    }
-                } else {
-                    document.getElementById('clientList').innerHTML = '<p>Erreur lors du chargement des clients.</p>';
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-                document.getElementById('clientList').innerHTML = '<p>Erreur lors du chargement des clients.</p>';
-            }
-        }
-        
-        async function loadDossiers() {
-            try {
-                const response = await fetch('/api/dossiers', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                
-                if (response.ok) {
-                    const dossiers = await response.json();
-                    const dossierList = document.getElementById('dossierList');
-                    
-                    if (dossiers.length === 0) {
-                        dossierList.innerHTML = '<p>Aucun dossier trouvé.</p>';
-                    } else {
-                        dossierList.innerHTML = dossiers.map(dossier => \`
-                            <div style="padding: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; margin: 0.5rem 0;">
-                                <strong>\${dossier.titre}</strong><br>
-                                📂 \${dossier.numero_dossier}<br>
-                                👤 \${dossier.prenom} \${dossier.nom}<br>
-                                📊 \${dossier.statut}
-                            </div>
-                        \`).join('');
-                    }
-                } else {
-                    document.getElementById('dossierList').innerHTML = '<p>Erreur lors du chargement des dossiers.</p>';
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-                document.getElementById('dossierList').innerHTML = '<p>Erreur lors du chargement des dossiers.</p>';
-            }
-        }
-        
-        function logout() {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('user');
-            location.reload();
-        }
-    </script>
-</body>
-</html>
-  `);
-});
-
-// Route de vérification de santé
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
-// Gestion des erreurs
-app.use((error, req, res, next) => {
-  console.error('Erreur serveur:', error);
-  res.status(500).json({ error: 'Erreur interne du serveur' });
-});
-
-app.use('*', (req, res) => {
-  res.status(404).json({ error: 'Route non trouvée' });
-});
-
-// Démarrage du serveur
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Cabinet d'Avocats démarré sur le port ${PORT}`);
-  console.log(`🌍 Environnement: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 Interface: http://localhost:${PORT}`);
-});
-
-// Gestion des erreurs non capturées
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});

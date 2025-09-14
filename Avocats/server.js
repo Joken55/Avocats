@@ -230,6 +230,147 @@ app.post('/create-admin', async (req, res) => {
   }
 });
 
+// Route pour créer toutes les tables
+app.post('/setup-tables', async (req, res) => {
+  try {
+    console.log('📋 Création des tables...');
+
+    // Table des utilisateurs
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(20) DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table des clients
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS clients (
+        id SERIAL PRIMARY KEY,
+        nom VARCHAR(100) NOT NULL,
+        prenom VARCHAR(100) NOT NULL,
+        email VARCHAR(100),
+        telephone VARCHAR(20),
+        adresse TEXT,
+        date_naissance DATE,
+        profession VARCHAR(100),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table des dossiers
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS dossiers (
+        id SERIAL PRIMARY KEY,
+        numero_dossier VARCHAR(50) UNIQUE NOT NULL,
+        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+        titre VARCHAR(200) NOT NULL,
+        description TEXT,
+        type_affaire VARCHAR(100),
+        statut VARCHAR(50) DEFAULT 'ouvert',
+        date_ouverture DATE DEFAULT CURRENT_DATE,
+        date_fermeture DATE,
+        avocat_responsable VARCHAR(100),
+        priorite VARCHAR(20) DEFAULT 'normale',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table des rendez-vous
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS rendez_vous (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+        dossier_id INTEGER REFERENCES dossiers(id) ON DELETE SET NULL,
+        titre VARCHAR(200) NOT NULL,
+        description TEXT,
+        date_rdv TIMESTAMP NOT NULL,
+        duree INTEGER DEFAULT 60,
+        lieu VARCHAR(200),
+        statut VARCHAR(50) DEFAULT 'prevu',
+        rappel_envoye BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table des documents
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS documents (
+        id SERIAL PRIMARY KEY,
+        dossier_id INTEGER REFERENCES dossiers(id) ON DELETE CASCADE,
+        nom_fichier VARCHAR(255) NOT NULL,
+        nom_original VARCHAR(255) NOT NULL,
+        type_fichier VARCHAR(100),
+        taille_fichier INTEGER,
+        chemin_fichier VARCHAR(500) NOT NULL,
+        description TEXT,
+        uploaded_by INTEGER REFERENCES users(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Table des notes
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id SERIAL PRIMARY KEY,
+        dossier_id INTEGER REFERENCES dossiers(id) ON DELETE CASCADE,
+        user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        contenu TEXT NOT NULL,
+        type_note VARCHAR(50) DEFAULT 'generale',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Index pour améliorer les performances
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_dossiers_numero ON dossiers(numero_dossier)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_dossiers_client ON dossiers(client_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_rdv_date ON rendez_vous(date_rdv)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_rdv_client ON rendez_vous(client_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_documents_dossier ON documents(dossier_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_notes_dossier ON notes(dossier_id)');
+
+    console.log('✅ Tables créées avec succès');
+
+    // Créer l'admin par défaut
+    const existingAdmin = await pool.query("SELECT * FROM users WHERE email = 'admin@cabinet.com'");
+    
+    if (existingAdmin.rows.length === 0) {
+      const passwordHash = await bcrypt.hash('admin123', 10);
+      
+      await pool.query(`
+        INSERT INTO users (username, email, password_hash, role)
+        VALUES ($1, $2, $3, $4)
+      `, ['admin', 'admin@cabinet.com', passwordHash, 'admin']);
+      
+      console.log('✅ Utilisateur admin créé');
+    }
+
+    res.json({ 
+      message: '✅ Setup terminé avec succès!',
+      tables_created: ['users', 'clients', 'dossiers', 'rendez_vous', 'documents', 'notes'],
+      admin_created: existingAdmin.rows.length === 0
+    });
+
+  } catch (error) {
+    console.error('Erreur setup tables:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors du setup', 
+      details: error.message 
+    });
+  }
+});
+
 // Routes API - Authentification
 app.post('/api/login', rateLimitMiddleware, async (req, res) => {
   try {
@@ -295,6 +436,107 @@ app.post('/api/login', rateLimitMiddleware, async (req, res) => {
   } catch (error) {
     console.error('💥 Erreur login:', error);
     res.status(500).json({ error: 'Erreur serveur: ' + error.message });
+  }
+});
+
+// Routes API - Employés
+app.get('/api/employes', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM employes ORDER BY nom, prenom');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erreur récupération employés:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.post('/api/employes', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
+      anciennete_annees, anciennete_mois, date_embauche, numero_employe,
+      telephone, email, adresse, statut, notes 
+    } = req.body;
+    
+    const result = await pool.query(
+      `INSERT INTO employes (
+        nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
+        anciennete_annees, anciennete_mois, date_embauche, numero_employe,
+        telephone, email, adresse, statut, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      [nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
+       anciennete_annees, anciennete_mois, date_embauche, numero_employe,
+       telephone, email, adresse, statut, notes]
+    );
+    
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur création employé:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.get('/api/employes/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM employes WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employé non trouvé' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur récupération employé:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.put('/api/employes/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
+      anciennete_annees, anciennete_mois, date_embauche, numero_employe,
+      telephone, email, adresse, statut, notes 
+    } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE employes SET 
+        nom = $1, prenom = $2, poste = $3, salaire_base = $4, salaire_maximum = $5, 
+        commissions = $6, anciennete_annees = $7, anciennete_mois = $8, 
+        date_embauche = $9, numero_employe = $10, telephone = $11, email = $12, 
+        adresse = $13, statut = $14, notes = $15, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $16 RETURNING *`,
+      [nom, prenom, poste, salaire_base, salaire_maximum, commissions, 
+       anciennete_annees, anciennete_mois, date_embauche, numero_employe,
+       telephone, email, adresse, statut, notes, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employé non trouvé' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erreur mise à jour employé:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.delete('/api/employes/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM employes WHERE id = $1 RETURNING id', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employé non trouvé' });
+    }
+    
+    res.json({ message: 'Employé supprimé avec succès' });
+  } catch (error) {
+    console.error('Erreur suppression employé:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

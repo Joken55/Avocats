@@ -4,7 +4,309 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cabinet d'Avocats - GTA5 RP</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+        }
+        .container { 
+            background: white; 
+            margin: 20px auto; 
+            border-radius: 15px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
+            width: 95%; 
+            max-width: 1200px; 
+            overflow: hidden; 
+        }
+        .login-container { 
+            padding: 3rem; 
+            text-align: center; 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .login-box { 
+            background: white; 
+            padding: 3rem; 
+            border-radius: 15px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
+            width: 100%; 
+            max-width: 400px; 
+        }
+        .logo { margin-bottom: 2rem; }
+        .logo h1 { color: #2d3748; font-size: 2rem; margin-bottom: 0.5rem; }
+        .logo p { color: #718096; font-size: 1rem; }
+        .form-group { margin-bottom: 1.5rem; text-align: left; }
+        label { display: block; margin-bottom: 0.5rem; color: #2d3748; font-weight: 500; }
+        input, select, textarea { 
+            width: 100%; 
+            padding: 0.75rem; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            transition: border-color 0.3s; 
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; }
+        .btn { 
+            padding: 0.75rem 1.5rem; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            text-decoration: none; 
+            display: inline-block; 
+            text-align: center; 
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            width: 100%; 
+        }
+        .btn-primary:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 15px rgba(102, 126, 234, 0.4); 
+        }
+        .btn-secondary { 
+            background: #f7fafc; 
+            color: #4a5568; 
+            border: 2px solid #e2e8f0; 
+        }
+        .btn-secondary:hover { background: #edf2f7; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-info { background: #4299e1; color: white; }
+        .btn-warning { background: #ed8936; color: white; }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
+        .test-accounts { 
+            margin-top: 2rem; 
+            padding: 1rem; 
+            background: linear-gradient(135deg, #e6fffa 0%, #f0fff4 100%); 
+            border-radius: 8px; 
+            font-size: 0.9rem; 
+            color: #4a5568; 
+            border: 1px solid #81e6d9;
+        }
+        .test-accounts h3 { margin-bottom: 0.5rem; color: #2d3748; }
+        .dashboard { display: none; }
+        .dashboard.active { display: block; }
+        .navbar { 
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%); 
+            color: white; 
+            padding: 1.5rem; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 1rem; 
+        }
+        .navbar h2 { margin: 0; font-size: 1.5rem; }
+        .nav-links { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .nav-link { 
+            padding: 0.5rem 1rem; 
+            background: rgba(255,255,255,0.1); 
+            border: none; 
+            color: white; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 0.9rem; 
+            transition: all 0.3s; 
+        }
+        .nav-link:hover { 
+            background: rgba(255,255,255,0.2); 
+            transform: translateY(-1px); 
+        }
+        .nav-link.active { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .content { padding: 2rem; min-height: 600px; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .section-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 2rem; 
+            flex-wrap: wrap; 
+            gap: 1rem; 
+        }
+        .section-header h2 { color: #2d3748; margin: 0; }
+        .stats { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 1.5rem; 
+            margin-bottom: 2rem; 
+        }
+        .stat-card { 
+            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%); 
+            padding: 2rem; 
+            border-radius: 12px; 
+            text-align: center; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            border: 1px solid #e2e8f0; 
+            transition: all 0.3s; 
+        }
+        .stat-card:hover { 
+            transform: translateY(-4px); 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
+        }
+        .stat-card:nth-child(1) { border-left: 4px solid #48bb78; }
+        .stat-card:nth-child(2) { border-left: 4px solid #ed8936; }
+        .stat-card:nth-child(3) { border-left: 4px solid #4299e1; }
+        .stat-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+        .stat-number { 
+            font-size: 2.5rem; 
+            font-weight: bold; 
+            margin-bottom: 0.5rem; 
+        }
+        .stat-card:nth-child(1) .stat-number { color: #48bb78; }
+        .stat-card:nth-child(2) .stat-number { color: #ed8936; }
+        .stat-card:nth-child(3) .stat-number { color: #4299e1; }
+        .stat-label { color: #718096; font-size: 0.9rem; font-weight: 500; }
+        .welcome-card { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            text-align: center; 
+            margin-bottom: 2rem; 
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .welcome-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .welcome-card h3 { margin-bottom: 1rem; font-size: 1.5rem; }
+        .welcome-card p { margin-bottom: 1.5rem; opacity: 0.9; }
+        .card { 
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); 
+            padding: 2rem; 
+            border-radius: 12px; 
+            margin-bottom: 2rem; 
+            border: 1px solid #e2e8f0; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .card h3 { color: #2d3748; margin-bottom: 1.5rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+        .data-list { max-height: 500px; overflow-y: auto; }
+        .data-item { 
+            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%); 
+            padding: 1.5rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #667eea; 
+            transition: all 0.3s; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .data-item:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            border-left-color: #764ba2;
+        }
+        .data-item-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 0.5rem; 
+        }
+        .data-item-title { font-weight: bold; color: #2d3748; font-size: 1.1rem; }
+        .data-item-info { color: #718096; font-size: 0.9rem; line-height: 1.4; margin-bottom: 1rem; }
+        .data-item-actions { display: flex; gap: 0.5rem; }
+        .error { 
+            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%); 
+            color: #c53030; 
+            padding: 0.75rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #e53e3e;
+        }
+        .success { 
+            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%); 
+            color: #2f855a; 
+            padding: 0.75rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #38a169;
+        }
+        .loading { 
+            background: linear-gradient(135deg, #bee3f8 0%, #90cdf4 100%); 
+            color: #2b6cb0; 
+            padding: 0.75rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #3182ce;
+        }
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            z-index: 1000; 
+        }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            width: 90%; 
+            max-width: 500px; 
+            max-height: 90vh; 
+            overflow-y: auto; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .modal-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 1.5rem; 
+        }
+        .modal-header h3 { margin: 0; color: #2d3748; }
+        .close-btn { 
+            background: none; 
+            border: none; 
+            font-size: 1.5rem; 
+            cursor: pointer; 
+            color: #718096; 
+            transition: color 0.3s;
+        }
+        .close-btn:hover { color: #e53e3e; }
+        
+        /* Status badges */
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-ouvert { background: #c6f6d5; color: #2f855a; }
+        .status-ferme { background: #fed7d7; color: #c53030; }
+        .status-en-cours { background: #fbd38d; color: #c05621; }
+        .status-prevu { background: #bee3f8; color: #2b6cb0; }
+        .status-termine { background: #e2e8f0; color: #4a5568; }
+        
+        /* Priority badges */
+        .priority-haute { background: #fed7d7; color: #c53030; }
+        .priority-normale { background: #bee3f8; color: #2b6cb0; }
+        .priority-basse { background: #c6f6d5; color: #2f855a; }
+        .priority-urgente { background: #e53e3e; color: white; }
+        
+        @media (max-width: 768px) {
+            .container { margin: 10px; width: calc(100% - 20px); }
+            .navbar { padding: 1rem; flex-direction: column; gap: 1rem; }
+            .nav-links { width: 100%; justify-content: center; }
+            .form-row { grid-template-columns: 1fr; }
+            .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+            .section-header { flex-direction: column; align-items: stretch; }
+            .modal-content { margin: 1rem; width: calc(100% - 2rem); }
+        }
+    </style>
 </head>
 <body>
     <div class="login-container" id="loginContainer">
@@ -13,23 +315,18 @@
                 <h1>Cabinet d'Avocats</h1>
                 <p>Connexion au système GTA5 RP</p>
             </div>
-            
             <div id="loginMessage"></div>
-            
             <form id="loginForm">
                 <div class="form-group">
                     <label for="email">Email :</label>
                     <input type="email" id="email" name="email" value="admin@cabinet.com" required>
                 </div>
-                
                 <div class="form-group">
                     <label for="password">Mot de passe :</label>
                     <input type="password" id="password" name="password" value="admin123" required>
                 </div>
-                
                 <button type="submit" class="btn btn-primary">Se connecter</button>
             </form>
-            
             <div class="test-accounts">
                 <h3>Compte de test :</h3>
                 <strong>admin@cabinet.com</strong> / <strong>admin123</strong>
@@ -50,7 +347,6 @@
         </div>
         
         <div class="content">
-            <!-- Section Aperçu -->
             <div id="overview" class="section active">
                 <div class="stats">
                     <div class="stat-card">
@@ -69,7 +365,6 @@
                         <div class="stat-label">Rendez-vous</div>
                     </div>
                 </div>
-                
                 <div class="welcome-card">
                     <div class="welcome-icon">🎉</div>
                     <h3>Bienvenue dans votre Cabinet d'Avocats !</h3>
@@ -77,13 +372,11 @@
                 </div>
             </div>
             
-            <!-- Section Clients -->
             <div id="clients" class="section">
                 <div class="section-header">
                     <h2>Gestion des Clients</h2>
-                    <button class="btn btn-primary" onclick="openClientModal()">Nouveau Client</button>
+                    <button class="btn btn-success" onclick="openClientModal()">+ Nouveau Client</button>
                 </div>
-                
                 <div class="card">
                     <div class="data-list" id="clientsList">
                         <p>Chargement des clients...</p>
@@ -91,13 +384,11 @@
                 </div>
             </div>
             
-            <!-- Section Dossiers -->
             <div id="dossiers" class="section">
                 <div class="section-header">
                     <h2>Gestion des Dossiers</h2>
-                    <button class="btn btn-primary" onclick="openDossierModal()">Nouveau Dossier</button>
+                    <button class="btn btn-warning" onclick="openDossierModal()">+ Nouveau Dossier</button>
                 </div>
-                
                 <div class="card">
                     <div class="data-list" id="dossiersList">
                         <p>Chargement des dossiers...</p>
@@ -105,13 +396,11 @@
                 </div>
             </div>
             
-            <!-- Section Rendez-vous -->
             <div id="rendez-vous" class="section">
                 <div class="section-header">
                     <h2>Gestion des Rendez-vous</h2>
-                    <button class="btn btn-primary" onclick="openRdvModal()">Nouveau Rendez-vous</button>
+                    <button class="btn btn-info" onclick="openRdvModal()">+ Nouveau Rendez-vous</button>
                 </div>
-                
                 <div class="card">
                     <div class="data-list" id="rdvList">
                         <p>Chargement des rendez-vous...</p>
@@ -169,7 +458,7 @@
                     <textarea id="clientNotes" name="notes" rows="3"></textarea>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="submit" class="btn btn-success">Enregistrer</button>
                     <button type="button" class="btn btn-secondary" onclick="closeClientModal()">Annuler</button>
                 </div>
             </form>
@@ -214,6 +503,7 @@
                             <option value="Pénal">Pénal</option>
                             <option value="Commercial">Commercial</option>
                             <option value="Famille">Famille</option>
+                            <option value="Immobilier">Immobilier</option>
                             <option value="Travail">Travail</option>
                         </select>
                     </div>
@@ -232,7 +522,7 @@
                     <input type="text" id="dossierAvocat" name="avocat_responsable">
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="submit" class="btn btn-warning">Enregistrer</button>
                     <button type="button" class="btn btn-secondary" onclick="closeDossierModal()">Annuler</button>
                 </div>
             </form>
@@ -285,13 +575,589 @@
                     <textarea id="rdvDescription" name="description" rows="3"></textarea>
                 </div>
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="submit" class="btn btn-info">Enregistrer</button>
                     <button type="button" class="btn btn-secondary" onclick="closeRdvModal()">Annuler</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+        let clients = [];
+        let dossiers = [];
+        let rendezVous = [];
+        
+        // Vérifier si l'utilisateur est déjà connecté
+        if (authToken) {
+            currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            showDashboard();
+            loadAllData();
+        }
+        
+        // Fonction pour afficher les messages
+        function showMessage(message, type = 'error') {
+            const messageDiv = document.getElementById('loginMessage');
+            if (messageDiv) {
+                messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+                setTimeout(() => messageDiv.innerHTML = '', 5000);
+            }
+        }
+        
+        // Gestionnaire de connexion
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                showMessage('Connexion en cours...', 'loading');
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    authToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    showMessage('Connexion réussie !', 'success');
+                    setTimeout(() => {
+                        showDashboard();
+                        loadAllData();
+                    }, 1000);
+                } else {
+                    showMessage('Erreur: ' + data.error);
+                }
+            } catch (error) {
+                showMessage('Erreur de connexion: ' + error.message);
+            }
+        });
+        
+        // Afficher le dashboard
+        function showDashboard() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+        }
+        
+        // Navigation entre sections
+        function showSection(sectionName) {
+            // Cacher toutes les sections
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Désactiver tous les liens nav
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            // Afficher la section demandée
+            const targetSection = document.getElementById(sectionName);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            // Activer le bon lien nav
+            event.target.classList.add('active');
+            
+            // Charger les données pour la section
+            switch(sectionName) {
+                case 'clients': 
+                    loadClients(); 
+                    break;
+                case 'dossiers': 
+                    loadDossiers(); 
+                    break;
+                case 'rendez-vous': 
+                    loadRendezVous(); 
+                    break;
+            }
+        }
+        
+        // Charger toutes les données
+        async function loadAllData() {
+            try {
+                await Promise.all([loadClients(), loadDossiers(), loadRendezVous()]);
+                updateStats();
+            } catch (error) {
+                console.error('Erreur lors du chargement des données:', error);
+            }
+        }
+        
+        // Mettre à jour les statistiques
+        function updateStats() {
+            document.getElementById('clientCount').textContent = clients.length;
+            document.getElementById('dossierCount').textContent = dossiers.length;
+            document.getElementById('rdvCount').textContent = rendezVous.length;
+        }
+        
+        // Charger les clients
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/clients', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    clients = await response.json();
+                    displayClients();
+                    updateClientSelects();
+                } else {
+                    console.error('Erreur lors du chargement des clients');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        // Afficher les clients
+        function displayClients() {
+            const clientsList = document.getElementById('clientsList');
+            if (clients.length === 0) {
+                clientsList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun client enregistré.</p>';
+                return;
+            }
+            
+            clientsList.innerHTML = clients.map(client => 
+                `<div class="data-item">
+                    <div class="data-item-header">
+                        <div class="data-item-title">${client.prenom} ${client.nom}</div>
+                    </div>
+                    <div class="data-item-info">
+                        ${client.email ? '<strong>Email :</strong> ' + client.email + '<br>' : ''}
+                        ${client.telephone ? '<strong>Téléphone :</strong> ' + client.telephone + '<br>' : ''}
+                        ${client.profession ? '<strong>Profession :</strong> ' + client.profession : ''}
+                    </div>
+                    <div class="data-item-actions">
+                        <button class="btn btn-info btn-sm" onclick="editClient(${client.id})">Modifier</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteClient(${client.id})">Supprimer</button>
+                    </div>
+                </div>`
+            ).join('');
+        }
+        
+        // Mettre à jour les selects clients
+        function updateClientSelects() {
+            const selects = ['dossierClient', 'rdvClient'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    select.innerHTML = '<option value="">Sélectionner un client</option>' +
+                        clients.map(client => 
+                            `<option value="${client.id}">${client.prenom} ${client.nom}</option>`
+                        ).join('');
+                }
+            });
+        }
+        
+        // Charger les dossiers
+        async function loadDossiers() {
+            try {
+                const response = await fetch('/api/dossiers', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    dossiers = await response.json();
+                    displayDossiers();
+                    updateDossierSelects();
+                } else {
+                    console.error('Erreur lors du chargement des dossiers');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        // Afficher les dossiers
+        function displayDossiers() {
+            const dossiersList = document.getElementById('dossiersList');
+            if (dossiers.length === 0) {
+                dossiersList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun dossier enregistré.</p>';
+                return;
+            }
+            
+            dossiersList.innerHTML = dossiers.map(dossier => {
+                const statusClass = `status-${(dossier.statut || 'ouvert').replace(' ', '-')}`;
+                const priorityClass = `priority-${(dossier.priorite || 'normale')}`;
+                
+                return `<div class="data-item">
+                    <div class="data-item-header">
+                        <div class="data-item-title">${dossier.titre}</div>
+                        <div>
+                            <span class="status-badge ${statusClass}">${dossier.statut || 'ouvert'}</span>
+                            <span class="status-badge ${priorityClass}">${dossier.priorite || 'normale'}</span>
+                        </div>
+                    </div>
+                    <div class="data-item-info">
+                        <strong>Numéro :</strong> ${dossier.numero_dossier}<br>
+                        ${dossier.nom ? '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' : ''}
+                        ${dossier.type_affaire ? '<strong>Type :</strong> ' + dossier.type_affaire + '<br>' : ''}
+                        ${dossier.avocat_responsable ? '<strong>Avocat :</strong> ' + dossier.avocat_responsable : ''}
+                    </div>
+                    <div class="data-item-actions">
+                        <button class="btn btn-info btn-sm" onclick="editDossier(${dossier.id})">Modifier</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteDossier(${dossier.id})">Supprimer</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        
+        // Mettre à jour les selects dossiers
+        function updateDossierSelects() {
+            const select = document.getElementById('rdvDossier');
+            if (select) {
+                select.innerHTML = '<option value="">Aucun dossier</option>' +
+                    dossiers.map(dossier => 
+                        `<option value="${dossier.id}">${dossier.numero_dossier} - ${dossier.titre}</option>`
+                    ).join('');
+            }
+        }
+        
+        // Charger les rendez-vous
+        async function loadRendezVous() {
+            try {
+                const response = await fetch('/api/rendez-vous', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    rendezVous = await response.json();
+                    displayRendezVous();
+                } else {
+                    console.error('Erreur lors du chargement des rendez-vous');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        // Afficher les rendez-vous
+        function displayRendezVous() {
+            const rdvList = document.getElementById('rdvList');
+            if (rendezVous.length === 0) {
+                rdvList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun rendez-vous programmé.</p>';
+                return;
+            }
+            
+            rdvList.innerHTML = rendezVous.map(rdv => {
+                const dateRdv = new Date(rdv.date_rdv);
+                const dateStr = dateRdv.toLocaleDateString('fr-FR');
+                const timeStr = dateRdv.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+                const statusClass = `status-${(rdv.statut || 'prevu').replace(' ', '-')}`;
+                
+                return `<div class="data-item">
+                    <div class="data-item-header">
+                        <div class="data-item-title">${rdv.titre}</div>
+                        <div>
+                            <span class="status-badge ${statusClass}">${rdv.statut || 'prévu'}</span>
+                            <span style="color: #667eea; font-weight: bold; margin-left: 0.5rem;">${dateStr} ${timeStr}</span>
+                        </div>
+                    </div>
+                    <div class="data-item-info">
+                        ${rdv.nom ? '<strong>Client :</strong> ' + rdv.prenom + ' ' + rdv.nom + '<br>' : ''}
+                        ${rdv.dossier_titre ? '<strong>Dossier :</strong> ' + rdv.dossier_titre + '<br>' : ''}
+                        ${rdv.lieu ? '<strong>Lieu :</strong> ' + rdv.lieu + '<br>' : ''}
+                        <strong>Durée :</strong> ${rdv.duree || 60} minutes
+                    </div>
+                    <div class="data-item-actions">
+                        <button class="btn btn-info btn-sm" onclick="editRdv(${rdv.id})">Modifier</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteRdv(${rdv.id})">Supprimer</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        
+        // === MODALS ===
+        
+        // Modal Client
+        function openClientModal(clientId = null) {
+            const modal = document.getElementById('clientModal');
+            const title = document.getElementById('clientModalTitle');
+            const form = document.getElementById('clientForm');
+            
+            if (clientId) {
+                const client = clients.find(c => c.id == clientId);
+                if (client) {
+                    title.textContent = 'Modifier Client';
+                    document.getElementById('clientId').value = client.id;
+                    document.getElementById('clientPrenom').value = client.prenom || '';
+                    document.getElementById('clientNom').value = client.nom || '';
+                    document.getElementById('clientEmail').value = client.email || '';
+                    document.getElementById('clientTelephone').value = client.telephone || '';
+                    document.getElementById('clientAdresse').value = client.adresse || '';
+                    document.getElementById('clientDateNaissance').value = client.date_naissance || '';
+                    document.getElementById('clientProfession').value = client.profession || '';
+                    document.getElementById('clientNotes').value = client.notes || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Client';
+                form.reset();
+                document.getElementById('clientId').value = '';
+            }
+            modal.classList.add('active');
+        }
+        
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('active');
+        }
+        
+        // Modal Dossier
+        function openDossierModal(dossierId = null) {
+            const modal = document.getElementById('dossierModal');
+            const title = document.getElementById('dossierModalTitle');
+            const form = document.getElementById('dossierForm');
+            updateClientSelects();
+            
+            if (dossierId) {
+                const dossier = dossiers.find(d => d.id == dossierId);
+                if (dossier) {
+                    title.textContent = 'Modifier Dossier';
+                    document.getElementById('dossierId').value = dossier.id;
+                    document.getElementById('dossierNumero').value = dossier.numero_dossier || '';
+                    document.getElementById('dossierClient').value = dossier.client_id || '';
+                    document.getElementById('dossierTitre').value = dossier.titre || '';
+                    document.getElementById('dossierDescription').value = dossier.description || '';
+                    document.getElementById('dossierType').value = dossier.type_affaire || '';
+                    document.getElementById('dossierPriorite').value = dossier.priorite || 'normale';
+                    document.getElementById('dossierAvocat').value = dossier.avocat_responsable || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Dossier';
+                form.reset();
+                document.getElementById('dossierId').value = '';
+                const nextNumber = String(dossiers.length + 1).padStart(4, '0');
+                document.getElementById('dossierNumero').value = 'DOS-' + nextNumber;
+            }
+            modal.classList.add('active');
+        }
+        
+        function closeDossierModal() {
+            document.getElementById('dossierModal').classList.remove('active');
+        }
+        
+        // Modal RDV
+        function openRdvModal(rdvId = null) {
+            const modal = document.getElementById('rdvModal');
+            const title = document.getElementById('rdvModalTitle');
+            const form = document.getElementById('rdvForm');
+            updateClientSelects();
+            updateDossierSelects();
+            
+            if (rdvId) {
+                const rdv = rendezVous.find(r => r.id == rdvId);
+                if (rdv) {
+                    title.textContent = 'Modifier Rendez-vous';
+                    document.getElementById('rdvId').value = rdv.id;
+                    document.getElementById('rdvTitre').value = rdv.titre || '';
+                    document.getElementById('rdvClient').value = rdv.client_id || '';
+                    document.getElementById('rdvDossier').value = rdv.dossier_id || '';
+                    document.getElementById('rdvDate').value = rdv.date_rdv ? rdv.date_rdv.slice(0, 16) : '';
+                    document.getElementById('rdvDuree').value = rdv.duree || 60;
+                    document.getElementById('rdvLieu').value = rdv.lieu || '';
+                    document.getElementById('rdvDescription').value = rdv.description || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Rendez-vous';
+                form.reset();
+                document.getElementById('rdvId').value = '';
+                document.getElementById('rdvDuree').value = 60;
+            }
+            modal.classList.add('active');
+        }
+        
+        function closeRdvModal() {
+            document.getElementById('rdvModal').classList.remove('active');
+        }
+        
+        // === FORMULAIRES ===
+        
+        // Formulaire Client
+        document.getElementById('clientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const clientId = document.getElementById('clientId').value;
+            const formData = new FormData(e.target);
+            const clientData = {};
+            formData.forEach((value, key) => {
+                clientData[key] = value || null;
+            });
+            
+            try {
+                const url = clientId ? `/api/clients/${clientId}` : '/api/clients';
+                const method = clientId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(clientData)
+                });
+                
+                if (response.ok) {
+                    closeClientModal();
+                    await loadClients();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        // Formulaire Dossier
+        document.getElementById('dossierForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const dossierId = document.getElementById('dossierId').value;
+            const formData = new FormData(e.target);
+            const dossierData = {};
+            formData.forEach((value, key) => {
+                dossierData[key] = value || null;
+            });
+            
+            try {
+                const url = dossierId ? `/api/dossiers/${dossierId}` : '/api/dossiers';
+                const method = dossierId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(dossierData)
+                });
+                
+                if (response.ok) {
+                    closeDossierModal();
+                    await loadDossiers();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        // Formulaire RDV
+        document.getElementById('rdvForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rdvId = document.getElementById('rdvId').value;
+            const formData = new FormData(e.target);
+            const rdvData = {};
+            formData.forEach((value, key) => {
+                rdvData[key] = value || null;
+            });
+            
+            try {
+                const url = rdvId ? `/api/rendez-vous/${rdvId}` : '/api/rendez-vous';
+                const method = rdvId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(rdvData)
+                });
+                
+                if (response.ok) {
+                    closeRdvModal();
+                    await loadRendezVous();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        // === FONCTIONS D'ÉDITION ===
+        function editClient(clientId) { openClientModal(clientId); }
+        function editDossier(dossierId) { openDossierModal(dossierId); }
+        function editRdv(rdvId) { openRdvModal(rdvId); }
+        
+        // === FONCTIONS DE SUPPRESSION ===
+        async function deleteClient(clientId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer ce client ?')) {
+                try {
+                    const response = await fetch(`/api/clients/${clientId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    if (response.ok) {
+                        await loadClients();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        async function deleteDossier(dossierId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer ce dossier ?')) {
+                try {
+                    const response = await fetch(`/api/dossiers/${dossierId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    if (response.ok) {
+                        await loadDossiers();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        async function deleteRdv(rdvId) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer ce rendez-vous ?')) {
+                try {
+                    const response = await fetch(`/api/rendez-vous/${rdvId}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    if (response.ok) {
+                        await loadRendezVous();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        // Déconnexion
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            location.reload();
+        }
+        
+        // Fermeture des modals en cliquant en dehors
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+    </script>
 </body>
 </html>

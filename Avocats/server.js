@@ -1,563 +1,470 @@
-const express = require('express');
-const { Pool } = require('pg');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-require('dotenv').config();
-
-const app = express();
-
-// Configuration proxy pour Railway
-app.set('trust proxy', 1);
-
-// Configuration de la base de données
-const getDbConfig = () => {
-  if (process.env.DATABASE_URL) {
-    return {
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? {
-        rejectUnauthorized: false
-      } : false
-    };
-  }
-  
-  return {
-    host: process.env.PGHOST || 'localhost',
-    port: parseInt(process.env.PGPORT || '5432'),
-    database: process.env.PGDATABASE || 'cabinet_avocats',
-    user: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || '',
-    ssl: process.env.NODE_ENV === 'production' ? {
-      rejectUnauthorized: false
-    } : false
-  };
-};
-
-const pool = new Pool(getDbConfig());
-
-// Middlewares de sécurité
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrcAttr: ["'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-}));
-
-app.use(compression());
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
-
-// Middleware pour parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Simple rate limiting middleware
-const simpleRateLimit = new Map();
-const rateLimitMiddleware = (req, res, next) => {
-  const ip = req.ip || req.connection.remoteAddress || 'unknown';
-  const now = Date.now();
-  const windowMs = 15 * 60 * 1000;
-  const maxRequests = 100;
-  
-  if (!simpleRateLimit.has(ip)) {
-    simpleRateLimit.set(ip, { count: 1, resetTime: now + windowMs });
-    return next();
-  }
-  
-  const record = simpleRateLimit.get(ip);
-  
-  if (now > record.resetTime) {
-    record.count = 1;
-    record.resetTime = now + windowMs;
-    return next();
-  }
-  
-  if (record.count >= maxRequests) {
-    return res.status(429).json({ error: 'Trop de requetes' });
-  }
-  
-  record.count++;
-  next();
-};
-
-// Middleware d'authentification
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ error: 'Token d\'acces requis' });
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET || 'default-secret', (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Token invalide' });
-    }
-    req.user = user;
-    next();
-  });
-};
-
-// Routes de debug
-app.get('/debug-env', (req, res) => {
-  const config = getDbConfig();
-  res.json({
-    'Variables ENV detectees': {
-      PGHOST: process.env.PGHOST || 'Non defini',
-      PGPORT: process.env.PGPORT || 'Non defini',
-      PGDATABASE: process.env.PGDATABASE || 'Non defini',
-      PGUSER: process.env.PGUSER || 'Non defini',
-      PGPASSWORD: process.env.PGPASSWORD ? 'Defini (masque)' : 'Non defini',
-      DATABASE_URL: process.env.DATABASE_URL ? 'Defini (masque)' : 'Non defini'
-    },
-    'Configuration utilisee par le code': {
-      host: config.host || config.connectionString,
-      port: config.port,
-      database: config.database,
-      user: config.user,
-      ssl: config.ssl ? 'Active' : 'Desactive'
-    },
-    'NODE_ENV': process.env.NODE_ENV || 'non defini',
-    'RAILWAY_ENVIRONMENT': process.env.RAILWAY_ENVIRONMENT || 'non defini'
-  });
-});
-
-app.get('/debug-db', async (req, res) => {
-  try {
-    console.log('Test de connexion DB...');
-    const client = await pool.connect();
-    
-    const testResult = await client.query('SELECT NOW() as current_time');
-    const tables = await client.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `);
-    
-    client.release();
-    
-    res.json({ 
-      status: 'DB connectee',
-      current_time: testResult.rows[0],
-      tables: tables.rows.map(t => t.table_name) 
-    });
-  } catch (error) {
-    console.error('Erreur debug-db:', error);
-    res.status(500).json({ 
-      status: 'Erreur DB', 
-      error: error.message
-    });
-  }
-});
-
-// Route pour créer toutes les tables
-app.post('/setup-tables', async (req, res) => {
-  try {
-    console.log('Creation des tables...');
-
-    // Table des utilisateurs
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        role VARCHAR(20) DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Table des clients
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS clients (
-        id SERIAL PRIMARY KEY,
-        nom VARCHAR(100) NOT NULL,
-        prenom VARCHAR(100) NOT NULL,
-        email VARCHAR(100),
-        telephone VARCHAR(20),
-        adresse TEXT,
-        date_naissance DATE,
-        profession VARCHAR(100),
-        notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Table des dossiers
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS dossiers (
-        id SERIAL PRIMARY KEY,
-        numero_dossier VARCHAR(50) UNIQUE NOT NULL,
-        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
-        titre VARCHAR(200) NOT NULL,
-        description TEXT,
-        type_affaire VARCHAR(100),
-        statut VARCHAR(50) DEFAULT 'ouvert',
-        date_ouverture DATE DEFAULT CURRENT_DATE,
-        date_fermeture DATE,
-        avocat_responsable VARCHAR(100),
-        priorite VARCHAR(20) DEFAULT 'normale',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Table des rendez-vous
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS rendez_vous (
-        id SERIAL PRIMARY KEY,
-        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
-        dossier_id INTEGER REFERENCES dossiers(id) ON DELETE SET NULL,
-        titre VARCHAR(200) NOT NULL,
-        description TEXT,
-        date_rdv TIMESTAMP NOT NULL,
-        duree INTEGER DEFAULT 60,
-        lieu VARCHAR(200),
-        statut VARCHAR(50) DEFAULT 'prevu',
-        rappel_envoye BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    console.log('Tables creees avec succes');
-
-    // Créer l'admin par défaut
-    const existingAdmin = await pool.query("SELECT * FROM users WHERE email = 'admin@cabinet.com'");
-    
-    if (existingAdmin.rows.length === 0) {
-      const passwordHash = await bcrypt.hash('admin123', 10);
-      
-      await pool.query(`
-        INSERT INTO users (username, email, password_hash, role)
-        VALUES ($1, $2, $3, $4)
-      `, ['admin', 'admin@cabinet.com', passwordHash, 'admin']);
-      
-      console.log('Utilisateur admin cree');
-    }
-
-    res.json({ 
-      message: 'Setup termine avec succes!',
-      tables_created: ['users', 'clients', 'dossiers', 'rendez_vous'],
-      admin_created: existingAdmin.rows.length === 0
-    });
-
-  } catch (error) {
-    console.error('Erreur setup tables:', error);
-    res.status(500).json({ 
-      error: 'Erreur lors du setup', 
-      details: error.message 
-    });
-  }
-});
-
-// Routes API - Authentification
-app.post('/api/login', rateLimitMiddleware, async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email et mot de passe requis' });
-    }
-    
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    const user = result.rows[0];
-    
-    if (!user) {
-      return res.status(401).json({ error: 'Utilisateur non trouve' });
-    }
-    
-    const passwordMatch = await bcrypt.compare(password, user.password_hash);
-    
-    if (!passwordMatch) {
-      return res.status(401).json({ error: 'Mot de passe incorrect' });
-    }
-    
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'default-secret',
-      { expiresIn: '24h' }
-    );
-    
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role
-      }
-    });
-  } catch (error) {
-    console.error('Erreur login:', error);
-    res.status(500).json({ error: 'Erreur serveur: ' + error.message });
-  }
-});
-
-// Routes API - Clients
-app.get('/api/clients', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM clients ORDER BY created_at DESC');
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.post('/api/clients', authenticateToken, async (req, res) => {
-  try {
-    const { nom, prenom, email, telephone, adresse, date_naissance, profession, notes } = req.body;
-    
-    const result = await pool.query(
-      'INSERT INTO clients (nom, prenom, email, telephone, adresse, date_naissance, profession, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [nom, prenom, email, telephone, adresse, date_naissance, profession, notes]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.put('/api/clients/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nom, prenom, email, telephone, adresse, date_naissance, profession, notes } = req.body;
-    
-    const result = await pool.query(
-      `UPDATE clients SET 
-        nom = $1, prenom = $2, email = $3, telephone = $4, 
-        adresse = $5, date_naissance = $6, profession = $7, notes = $8, 
-        updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $9 RETURNING *`,
-      [nom, prenom, email, telephone, adresse, date_naissance, profession, notes, id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Client non trouve' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.delete('/api/clients/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('DELETE FROM clients WHERE id = $1 RETURNING id', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Client non trouve' });
-    }
-    
-    res.json({ message: 'Client supprime avec succes' });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// Routes API - Dossiers
-app.get('/api/dossiers', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT d.*, c.nom, c.prenom 
-      FROM dossiers d 
-      LEFT JOIN clients c ON d.client_id = c.id 
-      ORDER BY d.created_at DESC
-    `);
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.post('/api/dossiers', authenticateToken, async (req, res) => {
-  try {
-    const { numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite } = req.body;
-    
-    const result = await pool.query(
-      'INSERT INTO dossiers (numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [numero_dossier, client_id, titre, description, type_affaire, avocat_responsable, priorite]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.put('/api/dossiers/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { numero_dossier, client_id, titre, description, type_affaire, statut, avocat_responsable, priorite } = req.body;
-    
-    const result = await pool.query(
-      `UPDATE dossiers SET 
-        numero_dossier = $1, client_id = $2, titre = $3, description = $4, 
-        type_affaire = $5, statut = $6, avocat_responsable = $7, priorite = $8, 
-        updated_at = CURRENT_TIMESTAMP 
-      WHERE id = $9 RETURNING *`,
-      [numero_dossier, client_id, titre, description, type_affaire, statut, avocat_responsable, priorite, id]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Dossier non trouve' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.delete('/api/dossiers/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const result = await pool.query('DELETE FROM dossiers WHERE id = $1 RETURNING id', [id]);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Dossier non trouve' });
-    }
-    
-    res.json({ message: 'Dossier supprime avec succes' });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// Routes API - Rendez-vous
-app.get('/api/rendez-vous', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT r.*, c.nom, c.prenom, d.titre as dossier_titre 
-      FROM rendez_vous r 
-      LEFT JOIN clients c ON r.client_id = c.id 
-      LEFT JOIN dossiers d ON r.dossier_id = d.id 
-      ORDER BY r.date_rdv ASC
-    `);
-    res.json(result.rows);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-app.post('/api/rendez-vous', authenticateToken, async (req, res) => {
-  try {
-    const { client_id, dossier_id, titre, description, date_rdv, duree, lieu } = req.body;
-    
-    const result = await pool.query(
-      'INSERT INTO rendez_vous (client_id, dossier_id, titre, description, date_rdv, duree, lieu) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [client_id, dossier_id, titre, description, date_rdv, duree, lieu]
-    );
-    
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur serveur' });
-  }
-});
-
-// Route principale avec HTML integre
-app.get('/', (req, res) => {
-  res.send(`<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cabinet d'Avocats - GTA5 RP</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
-        .container { background: white; margin: 20px auto; border-radius: 15px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); width: 95%; max-width: 1200px; overflow: hidden; }
-        .login-container { padding: 3rem; text-align: center; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-        .login-box { background: white; padding: 3rem; border-radius: 15px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); width: 100%; max-width: 400px; }
-        .logo { margin-bottom: 2rem; }
-        .logo h1 { color: #2d3748; font-size: 2rem; margin-bottom: 0.5rem; }
-        .logo p { color: #718096; font-size: 1rem; }
-        .form-group { margin-bottom: 1.5rem; text-align: left; }
-        label { display: block; margin-bottom: 0.5rem; color: #2d3748; font-weight: 500; }
-        input, select, textarea { width: 100%; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; transition: border-color 0.3s; }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; }
-        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; text-decoration: none; display: inline-block; text-align: center; }
-        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; width: 100%; }
-        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 15px rgba(102, 126, 234, 0.4); }
-        .btn-secondary { background: #f7fafc; color: #4a5568; border: 2px solid #e2e8f0; }
-        .btn-secondary:hover { background: #edf2f7; }
-        .btn-danger { background: #f56565; color: white; }
-        .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
-        .test-accounts { margin-top: 2rem; padding: 1rem; background: #f7fafc; border-radius: 8px; font-size: 0.9rem; color: #4a5568; }
-        .test-accounts h3 { margin-bottom: 0.5rem; color: #2d3748; }
-        .dashboard { display: none; }
-        .dashboard.active { display: block; }
-        .navbar { background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%); color: white; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-        .navbar h2 { margin: 0; font-size: 1.5rem; }
-        .nav-links { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        .nav-link { padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.9rem; transition: all 0.3s; }
-        .nav-link:hover, .nav-link.active { background: rgba(255,255,255,0.2); transform: translateY(-1px); }
-        .content { padding: 2rem; min-height: 600px; }
-        .section { display: none; }
-        .section.active { display: block; }
-        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
-        .section-header h2 { color: #2d3748; margin: 0; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
-        .stat-card { background: white; padding: 2rem; border-radius: 12px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; transition: all 0.3s; }
-        .stat-card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,0.15); }
-        .stat-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-        .stat-number { font-size: 2.5rem; font-weight: bold; color: #667eea; margin-bottom: 0.5rem; }
-        .stat-label { color: #718096; font-size: 0.9rem; font-weight: 500; }
-        .welcome-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 12px; text-align: center; margin-bottom: 2rem; }
-        .welcome-icon { font-size: 3rem; margin-bottom: 1rem; }
-        .welcome-card h3 { margin-bottom: 1rem; font-size: 1.5rem; }
-        .welcome-card p { margin-bottom: 1.5rem; opacity: 0.9; }
-        .card { background: #f8f9fa; padding: 2rem; border-radius: 12px; margin-bottom: 2rem; border: 1px solid #e2e8f0; }
-        .card h3 { color: #2d3748; margin-bottom: 1.5rem; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        .form-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
-        .data-list { max-height: 500px; overflow-y: auto; }
-        .data-item { background: white; padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid #e2e8f0; transition: all 0.3s; }
-        .data-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        .data-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-        .data-item-title { font-weight: bold; color: #2d3748; font-size: 1.1rem; }
-        .data-item-info { color: #718096; font-size: 0.9rem; line-height: 1.4; margin-bottom: 1rem; }
-        .data-item-actions { display: flex; gap: 0.5rem; }
-        .error { background: #fed7d7; color: #c53030; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
-        .success { background: #c6f6d5; color: #2f855a; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
-        .loading { background: #bee3f8; color: #2b6cb0; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
-        .modal.active { display: flex; align-items: center; justify-content: center; }
-        .modal-content { background: white; padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
-        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-        .modal-header h3 { margin: 0; color: #2d3748; }
-        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #718096; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        /* Login Styles */
+        .login-container {
+            padding: 3rem;
+            text-align: center;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-box {
+            background: white;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .logo {
+            margin-bottom: 2rem;
+        }
+
+        .logo h1 {
+            color: #2d3748;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .logo p {
+            color: #718096;
+            font-size: 1rem;
+        }
+
+        .test-accounts {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: linear-gradient(135deg, #e6fffa 0%, #f0fff4 100%);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #4a5568;
+            border: 1px solid #81e6d9;
+        }
+
+        .test-accounts h3 {
+            margin-bottom: 0.5rem;
+            color: #2d3748;
+        }
+
+        .dashboard {
+            display: none;
+        }
+
+        .dashboard.active {
+            display: block;
+        }
+
+        /* Tabs Styles */
+        .tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: #6c757d;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .tab.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            background: white;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Form Styles */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        /* Button Styles */
+        .btn {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,123,255,0.3);
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,123,255,0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            box-shadow: 0 4px 15px rgba(40,167,69,0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            box-shadow: 0 4px 15px rgba(220,53,69,0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 100%;
+        }
+
+        .btn-secondary {
+            background: #f7fafc;
+            color: #4a5568;
+            border: 2px solid #e2e8f0;
+            box-shadow: none;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        /* Section Styles */
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-left: 5px solid #007bff;
+        }
+
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            border-bottom: 2px solid #f1f3f4;
+            padding-bottom: 10px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 25px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-top: 4px solid;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card.revenue { border-top-color: #28a745; }
+        .stat-card.expenses { border-top-color: #dc3545; }
+        .stat-card.profit { border-top-color: #007bff; }
+        .stat-card.cases { border-top-color: #ffc107; }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .revenue .stat-number { color: #28a745; }
+        .expenses .stat-number { color: #dc3545; }
+        .profit .stat-number { color: #007bff; }
+        .cases .stat-number { color: #ffc107; }
+
+        /* Table Styles */
+        .table-container {
+            overflow-x: auto;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        th {
+            background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
+            color: white;
+            padding: 15px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            transition: background-color 0.3s ease;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Employee Card Styles */
+        .employee-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border-left: 5px solid #007bff;
+            transition: all 0.3s ease;
+        }
+
+        .employee-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+        }
+
+        .employee-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .employee-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .employee-role {
+            color: #6c757d;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .employee-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .employee-stat {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .employee-stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .employee-stat-label {
+            font-size: 0.8em;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+
+        .status-actif { color: #28a745; font-weight: bold; }
+        .status-inactif { color: #dc3545; font-weight: bold; }
+
+        /* Week Selector */
+        .week-selector {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .current-week {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 15px;
+        }
+
+        /* Error/Success Messages */
+        .error {
+            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+            color: #c53030;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .success {
+            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
+            color: #2f855a;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #38a169;
+        }
+
+        .loading {
+            background: linear-gradient(135deg, #bee3f8 0%, #90cdf4 100%);
+            color: #2b6cb0;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #3182ce;
+        }
+
+        /* Responsive */
         @media (max-width: 768px) {
-            .container { margin: 10px; width: calc(100% - 20px); }
-            .navbar { padding: 1rem; flex-direction: column; gap: 1rem; }
-            .nav-links { width: 100%; justify-content: center; }
-            .form-row { grid-template-columns: 1fr; }
-            .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-            .section-header { flex-direction: column; align-items: stretch; }
-            .modal-content { margin: 1rem; width: calc(100% - 2rem); }
+            .header h1 { font-size: 2em; }
+            .header p { font-size: 1em; }
+            .tabs { flex-direction: column; }
+            .form-row { flex-direction: column; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .employee-stats { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
+    <!-- Login Screen -->
     <div class="login-container" id="loginContainer">
         <div class="login-box">
             <div class="logo">
                 <h1>Cabinet d'Avocats</h1>
-                <p>Connexion au systeme GTA5 RP</p>
+                <p>Connexion au système GTA5 RP</p>
             </div>
             <div id="loginMessage"></div>
             <form id="loginForm">
@@ -577,277 +484,428 @@ app.get('/', (req, res) => {
             </div>
         </div>
     </div>
-    
+
+    <!-- Main Dashboard -->
     <div class="container dashboard" id="dashboard">
-        <div class="navbar">
-            <h2>Cabinet d'Avocats</h2>
-            <div class="nav-links">
-                <button class="nav-link active" onclick="showSection('overview')">Apercu</button>
-                <button class="nav-link" onclick="showSection('clients')">Clients</button>
-                <button class="nav-link" onclick="showSection('dossiers')">Dossiers</button>
-                <button class="nav-link" onclick="showSection('rendez-vous')">Rendez-vous</button>
-                <button class="nav-link" onclick="logout()">Deconnexion</button>
+        <div class="header">
+            <h1>⚖️ Cabinet d'Avocats</h1>
+            <p>Système de Comptabilité - GTA5 RP</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="openTab(event, 'tableau-bord')">📊 Tableau de Bord</button>
+            <button class="tab" onclick="openTab(event, 'employes')">👥 Employés</button>
+            <button class="tab" onclick="openTab(event, 'semaine-courante')">📅 Semaine Courante</button>
+            <button class="tab" onclick="openTab(event, 'historique')">📈 Historique</button>
+            <button class="tab" onclick="openTab(event, 'services')">💼 Services</button>
+            <button class="tab" onclick="openTab(event, 'finances')">💰 Finances</button>
+            <button class="tab" onclick="logout()">🚪 Déconnexion</button>
+        </div>
+
+        <!-- Tableau de Bord -->
+        <div id="tableau-bord" class="tab-content active">
+            <div class="week-selector">
+                <div class="current-week" id="currentWeek">Semaine du 15 septembre au 21 septembre 2025</div>
+                <button class="btn" onclick="nouveleSemaine()">🔄 Nouvelle Semaine</button>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card revenue">
+                    <div class="stat-number" id="totalRevenue">8000€</div>
+                    <div class="stat-label">Revenus Total</div>
+                </div>
+                <div class="stat-card expenses">
+                    <div class="stat-number" id="totalExpenses">550€</div>
+                    <div class="stat-label">Frais Total</div>
+                </div>
+                <div class="stat-card profit">
+                    <div class="stat-number" id="totalProfit">7450€</div>
+                    <div class="stat-label">Bénéfice Net</div>
+                </div>
+                <div class="stat-card cases">
+                    <div class="stat-number" id="totalCases">2</div>
+                    <div class="stat-label">Affaires Traitées</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>📊 Aperçu Rapide</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Métrique</th>
+                                <th>Cette Semaine</th>
+                                <th>Semaine Précédente</th>
+                                <th>Évolution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Revenus</td>
+                                <td>25,000€</td>
+                                <td>22,000€</td>
+                                <td style="color: #28a745;">+13.6%</td>
+                            </tr>
+                            <tr>
+                                <td>Nombre d'affaires</td>
+                                <td>6</td>
+                                <td>5</td>
+                                <td style="color: #28a745;">+20%</td>
+                            </tr>
+                            <tr>
+                                <td>Employés actifs</td>
+                                <td>8</td>
+                                <td>7</td>
+                                <td style="color: #28a745;">+14.3%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
-        
-        <div class="content">
-            <div id="overview" class="section active">
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-number" id="clientCount">
-                        <div class="stat-number" id="clientCount">0</div>
-                        <div class="stat-label">Clients</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📁</div>
-                        <div class="stat-number" id="dossierCount">0</div>
-                        <div class="stat-label">Dossiers</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📅</div>
-                        <div class="stat-number" id="rdvCount">0</div>
-                        <div class="stat-label">Rendez-vous</div>
-                    </div>
-                </div>
-                <div class="welcome-card">
-                    <div class="welcome-icon">🎉</div>
-                    <h3>Bienvenue dans votre Cabinet d'Avocats !</h3>
-                    <p>Votre systeme de gestion est operationnel et pret a l'emploi.</p>
-                </div>
-            </div>
-            
-            <div id="clients" class="section">
-                <div class="section-header">
-                    <h2>Gestion des Clients</h2>
-                    <button class="btn btn-primary" onclick="openClientModal()">Nouveau Client</button>
-                </div>
-                <div class="card">
-                    <div class="data-list" id="clientsList">
-                        <p>Chargement des clients...</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="dossiers" class="section">
-                <div class="section-header">
-                    <h2>Gestion des Dossiers</h2>
-                    <button class="btn btn-primary" onclick="openDossierModal()">Nouveau Dossier</button>
-                </div>
-                <div class="card">
-                    <div class="data-list" id="dossiersList">
-                        <p>Chargement des dossiers...</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="rendez-vous" class="section">
-                <div class="section-header">
-                    <h2>Gestion des Rendez-vous</h2>
-                    <button class="btn btn-primary" onclick="openRdvModal()">Nouveau Rendez-vous</button>
-                </div>
-                <div class="card">
-                    <div class="data-list" id="rdvList">
-                        <p>Chargement des rendez-vous...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal Client -->
-    <div id="clientModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="clientModalTitle">Nouveau Client</h3>
-                <button class="close-btn" onclick="closeClientModal()">&times;</button>
-            </div>
-            <form id="clientForm">
-                <input type="hidden" id="clientId">
+
+        <!-- Employés -->
+        <div id="employes" class="tab-content">
+            <div class="section">
+                <h2>👤 Ajouter un Employé</h2>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="clientPrenom">Prenom :</label>
-                        <input type="text" id="clientPrenom" name="prenom" required>
+                        <label>Nom Complet</label>
+                        <input type="text" id="employeeName" placeholder="Jean Dupont">
                     </div>
                     <div class="form-group">
-                        <label for="clientNom">Nom :</label>
-                        <input type="text" id="clientNom" name="nom" required>
+                        <label>Poste</label>
+                        <select id="employeeRole">
+                            <option value="Associé Senior">Associé Senior</option>
+                            <option value="Avocat">Avocat</option>
+                            <option value="Avocat Junior">Avocat Junior</option>
+                            <option value="Stagiaire">Stagiaire</option>
+                            <option value="Secrétaire">Secrétaire</option>
+                            <option value="Comptable">Comptable</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Salaire de Base (€)</label>
+                        <input type="number" id="employeeSalary" placeholder="5000">
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="clientEmail">Email :</label>
-                        <input type="email" id="clientEmail" name="email">
+                        <label>Taux de Commission (%)</label>
+                        <input type="number" id="employeeCommission" placeholder="15">
                     </div>
                     <div class="form-group">
-                        <label for="clientTelephone">Telephone :</label>
-                        <input type="tel" id="clientTelephone" name="telephone">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="clientAdresse">Adresse :</label>
-                    <textarea id="clientAdresse" name="adresse" rows="3"></textarea>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="clientDateNaissance">Date de naissance :</label>
-                        <input type="date" id="clientDateNaissance" name="date_naissance">
+                        <label>Date d'Embauche</label>
+                        <input type="date" id="employeeDate">
                     </div>
                     <div class="form-group">
-                        <label for="clientProfession">Profession :</label>
-                        <input type="text" id="clientProfession" name="profession">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="clientNotes">Notes :</label>
-                    <textarea id="clientNotes" name="notes" rows="3"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Enregistrer</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeClientModal()">Annuler</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Modal Dossier -->
-    <div id="dossierModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="dossierModalTitle">Nouveau Dossier</h3>
-                <button class="close-btn" onclick="closeDossierModal()">&times;</button>
-            </div>
-            <form id="dossierForm">
-                <input type="hidden" id="dossierId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="dossierNumero">Numero de dossier :</label>
-                        <input type="text" id="dossierNumero" name="numero_dossier" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="dossierClient">Client :</label>
-                        <select id="dossierClient" name="client_id" required>
-                            <option value="">Selectionner un client</option>
+                        <label>Statut</label>
+                        <select id="employeeStatus">
+                            <option value="Actif">Actif</option>
+                            <option value="Inactif">Inactif</option>
+                            <option value="Congé">Congé</option>
                         </select>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="dossierTitre">Titre :</label>
-                    <input type="text" id="dossierTitre" name="titre" required>
+                <button class="btn btn-success" onclick="ajouterEmploye()">➕ Ajouter Employé</button>
+            </div>
+
+            <div class="section">
+                <h2>👥 Liste des Employés</h2>
+                <div id="employeesList">
+                    <!-- Les employés seront ajoutés ici dynamiquement -->
                 </div>
-                <div class="form-group">
-                    <label for="dossierDescription">Description :</label>
-                    <textarea id="dossierDescription" name="description" rows="3"></textarea>
-                </div>
+            </div>
+        </div>
+
+        <!-- Semaine Courante -->
+        <div id="semaine-courante" class="tab-content">
+            <div class="section">
+                <h2>💼 Nouvelle Affaire</h2>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="dossierType">Type d'affaire :</label>
-                        <select id="dossierType" name="type_affaire">
-                            <option value="">Selectionner un type</option>
+                        <label>Client</label>
+                        <input type="text" id="clientName" placeholder="Nom du client">
+                    </div>
+                    <div class="form-group">
+                        <label>Type d'Affaire</label>
+                        <select id="caseType">
+                            <option value="Pénal">Pénal</option>
                             <option value="Civil">Civil</option>
-                            <option value="Penal">Penal</option>
                             <option value="Commercial">Commercial</option>
-                            <option value="Famille">Famille</option>
+                            <option value="Divorce">Divorce</option>
                             <option value="Immobilier">Immobilier</option>
-                            <option value="Travail">Travail</option>
+                            <option value="Contrat">Contrat</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="dossierPriorite">Priorite :</label>
-                        <select id="dossierPriorite" name="priorite">
-                            <option value="basse">Basse</option>
-                            <option value="normale" selected>Normale</option>
-                            <option value="haute">Haute</option>
-                            <option value="urgente">Urgente</option>
+                        <label>Avocat Assigné</label>
+                        <select id="assignedLawyer">
+                            <option value="">Sélectionner un avocat</option>
                         </select>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="dossierAvocat">Avocat responsable :</label>
-                    <input type="text" id="dossierAvocat" name="avocat_responsable">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Honoraires (€)</label>
+                        <input type="number" id="caseHonoraires" placeholder="2500">
+                    </div>
+                    <div class="form-group">
+                        <label>Frais Additionnels (€)</label>
+                        <input type="number" id="caseFrais" placeholder="150">
+                    </div>
+                    <div class="form-group">
+                        <label>Statut</label>
+                        <select id="caseStatus">
+                            <option value="En cours">En cours</option>
+                            <option value="Terminé">Terminé</option>
+                            <option value="En attente">En attente</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Enregistrer</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeDossierModal()">Annuler</button>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="caseDescription" rows="3" placeholder="Détails de l'affaire..."></textarea>
+                    </div>
                 </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Modal Rendez-vous -->
-    <div id="rdvModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="rdvModalTitle">Nouveau Rendez-vous</h3>
-                <button class="close-btn" onclick="closeRdvModal()">&times;</button>
+                <button class="btn btn-success" onclick="ajouterAffaire()">➕ Ajouter Affaire</button>
             </div>
-            <form id="rdvForm">
-                <input type="hidden" id="rdvId">
-                <div class="form-group">
-                    <label for="rdvTitre">Titre :</label>
-                    <input type="text" id="rdvTitre" name="titre" required>
+
+            <div class="section">
+                <h2>📋 Affaires de la Semaine</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Client</th>
+                                <th>Type</th>
+                                <th>Avocat</th>
+                                <th>Honoraires</th>
+                                <th>Frais</th>
+                                <th>Statut</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="currentWeekCases">
+                            <tr>
+                                <td>Jean Dupont</td>
+                                <td>Divorce</td>
+                                <td>Marie Dubois</td>
+                                <td>3000€</td>
+                                <td>200€</td>
+                                <td>Terminé</td>
+                                <td><button class="btn btn-danger btn-sm">🗑️</button></td>
+                            </tr>
+                            <tr>
+                                <td>SAS Technologies</td>
+                                <td>Commercial</td>
+                                <td>Pierre Martin</td>
+                                <td>5000€</td>
+                                <td>350€</td>
+                                <td>En cours</td>
+                                <td><button class="btn btn-danger btn-sm">🗑️</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- Historique -->
+        <div id="historique" class="tab-content">
+            <div class="section">
+                <h2>📊 Historique des Semaines</h2>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="rdvClient">Client :</label>
-                        <select id="rdvClient" name="client_id" required>
-                            <option value="">Selectionner un client</option>
+                        <label>Sélectionner une Semaine</label>
+                        <select id="weekSelector">
+                            <option value="2025-W37">Semaine 37 (9-15 Sept 2025)</option>
+                            <option value="2025-W36">Semaine 36 (2-8 Sept 2025)</option>
+                            <option value="2025-W35">Semaine 35 (26 Août - 1 Sept 2025)</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="rdvDossier">Dossier (optionnel) :</label>
-                        <select id="rdvDossier" name="dossier_id">
-                            <option value="">Aucun dossier</option>
-                        </select>
+                        <button class="btn" onclick="chargerSemaine()">📊 Charger Données</button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Services -->
+        <div id="services" class="tab-content">
+            <div class="section">
+                <h2>💼 Tarifs des Services</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Type de Service</th>
+                                <th>Tarif Horaire</th>
+                                <th>Forfait</th>
+                                <th>Commission Avocat</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Consultation</td>
+                                <td>150€/h</td>
+                                <td>-</td>
+                                <td>20%</td>
+                                <td><button class="btn">Modifier</button></td>
+                            </tr>
+                            <tr>
+                                <td>Affaire Pénale</td>
+                                <td>250€/h</td>
+                                <td>3000€</td>
+                                <td>25%</td>
+                                <td><button class="btn">Modifier</button></td>
+                            </tr>
+                            <tr>
+                                <td>Divorce</td>
+                                <td>200€/h</td>
+                                <td>2500€</td>
+                                <td>20%</td>
+                                <td><button class="btn">Modifier</button></td>
+                            </tr>
+                            <tr>
+                                <td>Commercial</td>
+                                <td>300€/h</td>
+                                <td>5000€</td>
+                                <td>30%</td>
+                                <td><button class="btn">Modifier</button></td>
+                            </tr>
+                            <tr>
+                                <td>Immobilier</td>
+                                <td>180€/h</td>
+                                <td>1500€</td>
+                                <td>18%</td>
+                                <td><button class="btn">Modifier</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Finances -->
+        <div id="finances" class="tab-content">
+            <div class="section">
+                <h2>💰 Calcul des Salaires</h2>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="rdvDate">Date et heure :</label>
-                        <input type="datetime-local" id="rdvDate" name="date_rdv" required>
+                        <button class="btn btn-success" onclick="calculerSalaires()">🧮 Calculer Salaires & Primes</button>
                     </div>
                     <div class="form-group">
-                        <label for="rdvDuree">Duree (minutes) :</label>
-                        <input type="number" id="rdvDuree" name="duree" value="60" min="15" max="480">
+                        <button class="btn" onclick="exporterDonnees()">📄 Exporter Données</button>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="rdvLieu">Lieu :</label>
-                    <input type="text" id="rdvLieu" name="lieu">
+            </div>
+
+            <div class="section">
+                <h2>📈 Rapport Financier</h2>
+                <div class="stats-grid">
+                    <div class="stat-card revenue">
+                        <div class="stat-number">125,000€</div>
+                        <div class="stat-label">CA Total</div>
+                    </div>
+                    <div class="stat-card expenses">
+                        <div class="stat-number">65,000€</div>
+                        <div class="stat-label">Salaires & Charges</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number" style="color: #6f42c1;">15,000€</div>
+                        <div class="stat-label">Frais Généraux</div>
+                    </div>
+                    <div class="stat-card profit">
+                        <div class="stat-number">45,000€</div>
+                        <div class="stat-label">Bénéfice Net</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="rdvDescription">Description :</label>
-                    <textarea id="rdvDescription" name="description" rows="3"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">Enregistrer</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeRdvModal()">Annuler</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 
     <script>
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
-        let clients = [];
-        let dossiers = [];
-        let rendezVous = [];
-        
+        let employees = [];
+        let currentWeekCases = [];
+        let currentWeek = '2025-W37';
+
+        // Données d'exemple
+        const sampleEmployees = [
+            {
+                id: 1,
+                name: "Marie Dubois",
+                role: "Associé Senior",
+                salary: 8000,
+                commission: 30,
+                date: "2023-01-15",
+                status: "Actif"
+            },
+            {
+                id: 2,
+                name: "Pierre Martin",
+                role: "Avocat",
+                salary: 5500,
+                commission: 25,
+                date: "2023-03-20",
+                status: "Actif"
+            },
+            {
+                id: 3,
+                name: "Sophie Leroy",
+                role: "Avocat Junior",
+                salary: 3500,
+                commission: 20,
+                date: "2024-01-10",
+                status: "Actif"
+            }
+        ];
+
+        const sampleCases = [
+            {
+                id: 1,
+                client: "Jean Dupont",
+                type: "Divorce",
+                lawyer: "Marie Dubois",
+                honoraires: 3000,
+                frais: 200,
+                status: "Terminé",
+                description: "Divorce contentieux"
+            },
+            {
+                id: 2,
+                client: "SAS Technologies",
+                type: "Commercial",
+                lawyer: "Pierre Martin",
+                honoraires: 5000,
+                frais: 350,
+                status: "En cours",
+                description: "Litige contractuel"
+            }
+        ];
+
+        // Vérifier si l'utilisateur est déjà connecté
         if (authToken) {
             currentUser = JSON.parse(localStorage.getItem('user') || '{}');
             showDashboard();
             loadAllData();
         }
-        
+
+        // Fonction pour afficher les messages
         function showMessage(message, type = 'error') {
             const messageDiv = document.getElementById('loginMessage');
             if (messageDiv) {
-                messageDiv.innerHTML = '<div class="' + type + '">' + message + '</div>';
+                messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
                 setTimeout(() => messageDiv.innerHTML = '', 5000);
             }
         }
-        
+
+        // Gestionnaire de connexion
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const email = document.getElementById('email').value;
@@ -867,7 +925,7 @@ app.get('/', (req, res) => {
                     currentUser = data.user;
                     localStorage.setItem('authToken', authToken);
                     localStorage.setItem('user', JSON.stringify(data.user));
-                    showMessage('Connexion reussie !', 'success');
+                    showMessage('Connexion réussie !', 'success');
                     setTimeout(() => {
                         showDashboard();
                         loadAllData();
@@ -879,513 +937,297 @@ app.get('/', (req, res) => {
                 showMessage('Erreur de connexion: ' + error.message);
             }
         });
-        
+
+        // Afficher le dashboard
         function showDashboard() {
             document.getElementById('loginContainer').style.display = 'none';
             document.getElementById('dashboard').classList.add('active');
         }
-        
-        function showSection(sectionName, buttonElement) {
-    // Cacher toutes les sections
-    document.querySelectorAll('.section').forEach(section => {
-        section.classList.remove('active');
-    });
-    
-    // Désactiver tous les liens nav
-    document.querySelectorAll('.nav-link').forEach(link => {
-        link.classList.remove('active');
-    });
-    
-    // Afficher la section demandée
-    const targetSection = document.getElementById(sectionName);
-    if (targetSection) {
-        targetSection.classList.add('active');
-    }
-    
-    // Activer le bon lien nav
-    if (buttonElement) {
-        buttonElement.classList.add('active');
-    }
-    
-    // Charger les données pour la section
-    switch(sectionName) {
-        case 'clients': 
-            loadClients(); 
-            break;
-        case 'dossiers': 
-            loadDossiers(); 
-            break;
-        case 'rendez-vous': 
-            loadRendezVous(); 
-            break;
-    }
-}
-        
-        async function loadAllData() {
-            await Promise.all([loadClients(), loadDossiers(), loadRendezVous()]);
-            updateStats();
+
+        // Initialisation
+        function loadAllData() {
+            employees = [...sampleEmployees];
+            currentWeekCases = [...sampleCases];
+            updateEmployesList();
+            updateCurrentWeekCases();
+            updateLawyerSelect();
+            updateCurrentWeekDisplay();
+            updateDashboardStats();
         }
-        
-        function updateStats() {
-            document.getElementById('clientCount').textContent = clients.length;
-            document.getElementById('dossierCount').textContent = dossiers.length;
-            document.getElementById('rdvCount').textContent = rendezVous.length;
-        }
-        
-        async function loadClients() {
-            try {
-                const response = await fetch('/api/clients', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (response.ok) {
-                    clients = await response.json();
-                    displayClients();
-                    updateClientSelects();
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
+
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
             }
-        }
-        
-        function displayClients() {
-            const clientsList = document.getElementById('clientsList');
-            if (clients.length === 0) {
-                clientsList.innerHTML = '<p>Aucun client enregistre.</p>';
-                return;
+            tablinks = document.getElementsByClassName("tab");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
             }
-            clientsList.innerHTML = clients.map(client => 
-                '<div class="data-item">' +
-                    '<div class="data-item-header">' +
-                        '<div class="data-item-title">' + client.prenom + ' ' + client.nom + '</div>' +
-                    '</div>' +
-                    '<div class="data-item-info">' +
-                        (client.email ? '<strong>Email :</strong> ' + client.email + '<br>' : '') +
-                        (client.telephone ? '<strong>Telephone :</strong> ' + client.telephone + '<br>' : '') +
-                        (client.profession ? '<strong>Profession :</strong> ' + client.profession : '') +
-                    '</div>' +
-                    '<div class="data-item-actions">' +
-                        '<button class="btn btn-secondary btn-sm" onclick="editClient(' + client.id + ')">Modifier</button>' +
-                        '<button class="btn btn-danger btn-sm" onclick="deleteClient(' + client.id + ')">Supprimer</button>' +
-                    '</div>' +
-                '</div>'
-            ).join('');
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
         }
-        
-        function updateClientSelects() {
-            const selects = ['dossierClient', 'rdvClient'];
-            selects.forEach(selectId => {
-                const select = document.getElementById(selectId);
-                if (select) {
-                    select.innerHTML = '<option value="">Selectionner un client</option>' +
-                        clients.map(client => 
-                            '<option value="' + client.id + '">' + client.prenom + ' ' + client.nom + '</option>'
-                        ).join('');
-                }
-            });
-        }
-        
-        async function loadDossiers() {
-            try {
-                const response = await fetch('/api/dossiers', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (response.ok) {
-                    dossiers = await response.json();
-                    displayDossiers();
-                    updateDossierSelects();
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-            }
-        }
-        
-        function displayDossiers() {
-            const dossiersList = document.getElementById('dossiersList');
-            if (dossiers.length === 0) {
-                dossiersList.innerHTML = '<p>Aucun dossier enregistre.</p>';
-                return;
-            }
-            dossiersList.innerHTML = dossiers.map(dossier => 
-                '<div class="data-item">' +
-                    '<div class="data-item-header">' +
-                        '<div class="data-item-title">' + dossier.titre + '</div>' +
-                        '<span style="color: #667eea; font-weight: bold;">' + (dossier.statut || 'ouvert') + '</span>' +
-                    '</div>' +
-                    '<div class="data-item-info">' +
-                        '<strong>Numero :</strong> ' + dossier.numero_dossier + '<br>' +
-                        (dossier.nom ? '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' : '') +
-                        (dossier.type_affaire ? '<strong>Type :</strong> ' + dossier.type_affaire + '<br>' : '') +
-                        (dossier.avocat_responsable ? '<strong>Avocat :</strong> ' + dossier.avocat_responsable : '') +
-                    '</div>' +
-                    '<div class="data-item-actions">' +
-                        '<button class="btn btn-secondary btn-sm" onclick="editDossier(' + dossier.id + ')">Modifier</button>' +
-                        '<button class="btn btn-danger btn-sm" onclick="deleteDossier(' + dossier.id + ')">Supprimer</button>' +
-                    '</div>' +
-                '</div>'
-            ).join('');
-        }
-        
-        function updateDossierSelects() {
-            const select = document.getElementById('rdvDossier');
-            if (select) {
-                select.innerHTML = '<option value="">Aucun dossier</option>' +
-                    dossiers.map(dossier => 
-                        '<option value="' + dossier.id + '">' + dossier.numero_dossier + ' - ' + dossier.titre + '</option>'
-                    ).join('');
-            }
-        }
-        
-        async function loadRendezVous() {
-            try {
-                const response = await fetch('/api/rendez-vous', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (response.ok) {
-                    rendezVous = await response.json();
-                    displayRendezVous();
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-            }
-        }
-        
-        function displayRendezVous() {
-            const rdvList = document.getElementById('rdvList');
-            if (rendezVous.length === 0) {
-                rdvList.innerHTML = '<p>Aucun rendez-vous programme.</p>';
-                return;
-            }
-            rdvList.innerHTML = rendezVous.map(rdv => {
-                const dateRdv = new Date(rdv.date_rdv);
-                const dateStr = dateRdv.toLocaleDateString('fr-FR');
-                const timeStr = dateRdv.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
-                return '<div class="data-item">' +
-                    '<div class="data-item-header">' +
-                        '<div class="data-item-title">' + rdv.titre + '</div>' +
-                        '<span style="color: #667eea; font-weight: bold;">' + dateStr + ' ' + timeStr + '</span>' +
-                    '</div>' +
-                    '<div class="data-item-info">' +
-                        (rdv.nom ? '<strong>Client :</strong> ' + rdv.prenom + ' ' + rdv.nom + '<br>' : '') +
-                        (rdv.dossier_titre ? '<strong>Dossier :</strong> ' + rdv.dossier_titre + '<br>' : '') +
-                        (rdv.lieu ? '<strong>Lieu :</strong> ' + rdv.lieu + '<br>' : '') +
-                        '<strong>Duree :</strong> ' + (rdv.duree || 60) + ' minutes' +
-                    '</div>' +
-                    '<div class="data-item-actions">' +
-                        '<button class="btn btn-secondary btn-sm" onclick="editRdv(' + rdv.id + ')">Modifier</button>' +
-                        '<button class="btn btn-danger btn-sm" onclick="deleteRdv(' + rdv.id + ')">Supprimer</button>' +
-                    '</div>' +
-                '</div>';
-            }).join('');
-        }
-        
-        // Modals
-        function openClientModal(clientId = null) {
-            const modal = document.getElementById('clientModal');
-            const title = document.getElementById('clientModalTitle');
-            const form = document.getElementById('clientForm');
-            
-            if (clientId) {
-                const client = clients.find(c => c.id == clientId);
-                if (client) {
-                    title.textContent = 'Modifier Client';
-                    document.getElementById('clientId').value = client.id;
-                    document.getElementById('clientPrenom').value = client.prenom || '';
-                    document.getElementById('clientNom').value = client.nom || '';
-                    document.getElementById('clientEmail').value = client.email || '';
-                    document.getElementById('clientTelephone').value = client.telephone || '';
-                    document.getElementById('clientAdresse').value = client.adresse || '';
-                    document.getElementById('clientDateNaissance').value = client.date_naissance || '';
-                    document.getElementById('clientProfession').value = client.profession || '';
-                    document.getElementById('clientNotes').value = client.notes || '';
-                }
-            } else {
-                title.textContent = 'Nouveau Client';
-                form.reset();
-                document.getElementById('clientId').value = '';
-            }
-            modal.classList.add('active');
-        }
-        
-        function closeClientModal() {
-            document.getElementById('clientModal').classList.remove('active');
-        }
-        
-        function openDossierModal(dossierId = null) {
-            const modal = document.getElementById('dossierModal');
-            const title = document.getElementById('dossierModalTitle');
-            const form = document.getElementById('dossierForm');
-            updateClientSelects();
-            
-            if (dossierId) {
-                const dossier = dossiers.find(d => d.id == dossierId);
-                if (dossier) {
-                    title.textContent = 'Modifier Dossier';
-                    document.getElementById('dossierId').value = dossier.id;
-                    document.getElementById('dossierNumero').value = dossier.numero_dossier || '';
-                    document.getElementById('dossierClient').value = dossier.client_id || '';
-                    document.getElementById('dossierTitre').value = dossier.titre || '';
-                    document.getElementById('dossierDescription').value = dossier.description || '';
-                    document.getElementById('dossierType').value = dossier.type_affaire || '';
-                    document.getElementById('dossierPriorite').value = dossier.priorite || 'normale';
-                    document.getElementById('dossierAvocat').value = dossier.avocat_responsable || '';
-                }
-            } else {
-                title.textContent = 'Nouveau Dossier';
-                form.reset();
-                document.getElementById('dossierId').value = '';
-                const nextNumber = String(dossiers.length + 1).padStart(4, '0');
-                document.getElementById('dossierNumero').value = 'DOS-' + nextNumber;
-            }
-            modal.classList.add('active');
-        }
-        
-        function closeDossierModal() {
-            document.getElementById('dossierModal').classList.remove('active');
-        }
-        
-        function openRdvModal(rdvId = null) {
-            const modal = document.getElementById('rdvModal');
-            const title = document.getElementById('rdvModalTitle');
-            const form = document.getElementById('rdvForm');
-            updateClientSelects();
-            updateDossierSelects();
-            
-            if (rdvId) {
-                const rdv = rendezVous.find(r => r.id == rdvId);
-                if (rdv) {
-                    title.textContent = 'Modifier Rendez-vous';
-                    document.getElementById('rdvId').value = rdv.id;
-                    document.getElementById('rdvTitre').value = rdv.titre || '';
-                    document.getElementById('rdvClient').value = rdv.client_id || '';
-                    document.getElementById('rdvDossier').value = rdv.dossier_id || '';
-                    document.getElementById('rdvDate').value = rdv.date_rdv ? rdv.date_rdv.slice(0, 16) : '';
-                    document.getElementById('rdvDuree').value = rdv.duree || 60;
-                    document.getElementById('rdvLieu').value = rdv.lieu || '';
-                    document.getElementById('rdvDescription').value = rdv.description || '';
-                }
-            } else {
-                title.textContent = 'Nouveau Rendez-vous';
-                form.reset();
-                document.getElementById('rdvId').value = '';
-                document.getElementById('rdvDuree').value = 60;
-            }
-            modal.classList.add('active');
-        }
-        
-        function closeRdvModal() {
-            document.getElementById('rdvModal').classList.remove('active');
-        }
-        
-        // Formulaires
-        document.getElementById('clientForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const clientId = document.getElementById('clientId').value;
-            const formData = new FormData(e.target);
-            const clientData = {};
-            formData.forEach((value, key) => {
-                clientData[key] = value || null;
-            });
-            
-            try {
-                const url = clientId ? '/api/clients/' + clientId : '/api/clients';
-                const method = clientId ? 'PUT' : 'POST';
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify(clientData)
+
+        function ajouterEmploye() {
+            const name = document.getElementById('employeeName').value;
+            const role = document.getElementById('employeeRole').value;
+            const salary = parseInt(document.getElementById('employeeSalary').value);
+            const commission = parseInt(document.getElementById('employeeCommission').value);
+            const date = document.getElementById('employeeDate').value;
+            const status = document.getElementById('employeeStatus').value;
+
+            if (name && salary && commission) {
+                employees.push({
+                    id: Date.now(),
+                    name: name,
+                    role: role,
+                    salary: salary,
+                    commission: commission,
+                    date: date,
+                    status: status
                 });
                 
-                if (response.ok) {
-                    closeClientModal();
-                    await loadClients();
-                    updateStats();
-                } else {
-                    const error = await response.json();
-                    alert('Erreur : ' + error.error);
-                }
-            } catch (error) {
-                alert('Erreur : ' + error.message);
+                updateEmployesList();
+                updateLawyerSelect();
+                
+                // Reset form
+                document.getElementById('employeeName').value = '';
+                document.getElementById('employeeSalary').value = '';
+                document.getElementById('employeeCommission').value = '';
+                document.getElementById('employeeDate').value = '';
+                
+                alert('Employé ajouté avec succès !');
+            } else {
+                alert('Veuillez remplir tous les champs obligatoires.');
             }
-        });
-        
-        document.getElementById('dossierForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const dossierId = document.getElementById('dossierId').value;
-            const formData = new FormData(e.target);
-            const dossierData = {};
-            formData.forEach((value, key) => {
-                dossierData[key] = value || null;
-            });
+        }
+
+        function updateEmployesList() {
+            const container = document.getElementById('employeesList');
+            container.innerHTML = '';
             
-            try {
-                const url = dossierId ? '/api/dossiers/' + dossierId : '/api/dossiers';
-                const method = dossierId ? 'PUT' : 'POST';
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify(dossierData)
+            employees.forEach((emp, index) => {
+                const card = document.createElement('div');
+                card.className = 'employee-card';
+                card.innerHTML = `
+                    <div class="employee-header">
+                        <div>
+                            <div class="employee-name">${emp.name}</div>
+                            <div class="employee-role">${emp.role}</div>
+                        </div>
+                        <div class="status-${emp.status.toLowerCase()}">${emp.status}</div>
+                    </div>
+                    <div class="employee-stats">
+                        <div class="employee-stat">
+                            <div class="employee-stat-value">${emp.salary}€</div>
+                            <div class="employee-stat-label">Salaire Base</div>
+                        </div>
+                        <div class="employee-stat">
+                            <div class="employee-stat-value">${emp.commission}%</div>
+                            <div class="employee-stat-label">Commission</div>
+                        </div>
+                        <div class="employee-stat">
+                            <div class="employee-stat-value">${new Date(emp.date).toLocaleDateString('fr-FR')}</div>
+                            <div class="employee-stat-label">Date Embauche</div>
+                        </div>
+                        <div class="employee-stat">
+                            <button class="btn btn-danger btn-sm" onclick="supprimerEmploye(${index})">🗑️ Supprimer</button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function supprimerEmploye(index) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cet employé ?')) {
+                employees.splice(index, 1);
+                updateEmployesList();
+                updateLawyerSelect();
+            }
+        }
+
+        function updateLawyerSelect() {
+            const select = document.getElementById('assignedLawyer');
+            select.innerHTML = '<option value="">Sélectionner un avocat</option>';
+            
+            employees.filter(emp => 
+                emp.role.includes('Avocat') || emp.role.includes('Associé')
+            ).forEach(lawyer => {
+                const option = document.createElement('option');
+                option.value = lawyer.name;
+                option.textContent = lawyer.name;
+                select.appendChild(option);
+            });
+        }
+
+        function ajouterAffaire() {
+            const client = document.getElementById('clientName').value;
+            const type = document.getElementById('caseType').value;
+            const lawyer = document.getElementById('assignedLawyer').value;
+            const honoraires = parseInt(document.getElementById('caseHonoraires').value);
+            const frais = parseInt(document.getElementById('caseFrais').value) || 0;
+            const status = document.getElementById('caseStatus').value;
+            const description = document.getElementById('caseDescription').value;
+
+            if (client && lawyer && honoraires) {
+                currentWeekCases.push({
+                    id: Date.now(),
+                    client: client,
+                    type: type,
+                    lawyer: lawyer,
+                    honoraires: honoraires,
+                    frais: frais,
+                    status: status,
+                    description: description
                 });
                 
-                if (response.ok) {
-                    closeDossierModal();
-                    await loadDossiers();
-                    updateStats();
-                } else {
-                    const error = await response.json();
-                    alert('Erreur : ' + error.error);
-                }
-            } catch (error) {
-                alert('Erreur : ' + error.message);
-            }
-        });
-        
-        document.getElementById('rdvForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const rdvId = document.getElementById('rdvId').value;
-            const formData = new FormData(e.target);
-            const rdvData = {};
-            formData.forEach((value, key) => {
-                rdvData[key] = value || null;
-            });
-            
-            try {
-                const url = rdvId ? '/api/rendez-vous/' + rdvId : '/api/rendez-vous';
-                const method = rdvId ? 'PUT' : 'POST';
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + authToken
-                    },
-                    body: JSON.stringify(rdvData)
-                });
+                updateCurrentWeekCases();
+                updateDashboardStats();
                 
-                if (response.ok) {
-                    closeRdvModal();
-                    await loadRendezVous();
-                    updateStats();
-                } else {
-                    const error = await response.json();
-                    alert('Erreur : ' + error.error);
-                }
-            } catch (error) {
-                alert('Erreur : ' + error.message);
-            }
-        });
-        
-        // Fonctions d'edition
-        function editClient(clientId) { openClientModal(clientId); }
-        function editDossier(dossierId) { openDossierModal(dossierId); }
-        function editRdv(rdvId) { openRdvModal(rdvId); }
-        
-        // Fonctions de suppression
-        async function deleteClient(clientId) {
-            if (confirm('Etes-vous sur de vouloir supprimer ce client ?')) {
-                try {
-                    const response = await fetch('/api/clients/' + clientId, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': 'Bearer ' + authToken }
-                    });
-                    if (response.ok) {
-                        await loadClients();
-                        updateStats();
-                    } else {
-                        const error = await response.json();
-                        alert('Erreur : ' + error.error);
-                    }
-                } catch (error) {
-                    alert('Erreur : ' + error.message);
-                }
+                // Reset form
+                document.getElementById('clientName').value = '';
+                document.getElementById('caseHonoraires').value = '';
+                document.getElementById('caseFrais').value = '';
+                document.getElementById('caseDescription').value = '';
+                
+                alert('Affaire ajoutée avec succès !');
+            } else {
+                alert('Veuillez remplir tous les champs obligatoires.');
             }
         }
-        
-        async function deleteDossier(dossierId) {
-            if (confirm('Etes-vous sur de vouloir supprimer ce dossier ?')) {
-                try {
-                    const response = await fetch('/api/dossiers/' + dossierId, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': 'Bearer ' + authToken }
-                    });
-                    if (response.ok) {
-                        await loadDossiers();
-                        updateStats();
-                    } else {
-                        const error = await response.json();
-                        alert('Erreur : ' + error.error);
-                    }
-                } catch (error) {
-                    alert('Erreur : ' + error.message);
-                }
+
+        function updateCurrentWeekCases() {
+            const tbody = document.getElementById('currentWeekCases');
+            tbody.innerHTML = '';
+            
+            currentWeekCases.forEach((cas, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${cas.client}</td>
+                    <td>${cas.type}</td>
+                    <td>${cas.lawyer}</td>
+                    <td>${cas.honoraires.toLocaleString('fr-FR')}€</td>
+                    <td>${cas.frais.toLocaleString('fr-FR')}€</td>
+                    <td><span class="status-${cas.status.replace(' ', '-').toLowerCase()}">${cas.status}</span></td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" onclick="supprimerAffaire(${index})">🗑️</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function supprimerAffaire(index) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette affaire ?')) {
+                currentWeekCases.splice(index, 1);
+                updateCurrentWeekCases();
+                updateDashboardStats();
             }
         }
-        
-        async function deleteRdv(rdvId) {
-            if (confirm('Etes-vous sur de vouloir supprimer ce rendez-vous ?')) {
-                try {
-                    const response = await fetch('/api/rendez-vous/' + rdvId, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': 'Bearer ' + authToken }
-                    });
-                    if (response.ok) {
-                        await loadRendezVous();
-                        updateStats();
-                    } else {
-                        const error = await response.json();
-                        alert('Erreur : ' + error.error);
-                    }
-                } catch (error) {
-                    alert('Erreur : ' + error.message);
-                }
+
+        function updateDashboardStats() {
+            const totalRevenue = currentWeekCases.reduce((sum, cas) => sum + cas.honoraires, 0);
+            const totalExpenses = currentWeekCases.reduce((sum, cas) => sum + cas.frais, 0);
+            const totalProfit = totalRevenue - totalExpenses;
+            const totalCases = currentWeekCases.length;
+
+            document.getElementById('totalRevenue').textContent = totalRevenue.toLocaleString('fr-FR') + '€';
+            document.getElementById('totalExpenses').textContent = totalExpenses.toLocaleString('fr-FR') + '€';
+            document.getElementById('totalProfit').textContent = totalProfit.toLocaleString('fr-FR') + '€';
+            document.getElementById('totalCases').textContent = totalCases;
+        }
+
+        function nouveleSemaine() {
+            if (confirm('Êtes-vous sûr de vouloir créer une nouvelle semaine ? Les données actuelles seront archivées.')) {
+                // Archiver la semaine actuelle
+                const currentWeekData = {
+                    week: currentWeek,
+                    cases: [...currentWeekCases],
+                    revenue: currentWeekCases.reduce((sum, cas) => sum + cas.honoraires, 0),
+                    expenses: currentWeekCases.reduce((sum, cas) => sum + cas.frais, 0)
+                };
+                
+                localStorage.setItem(`week_${currentWeek}`, JSON.stringify(currentWeekData));
+                
+                // Nouvelle semaine
+                const now = new Date();
+                const weekNumber = getWeekNumber(now);
+                currentWeek = `2025-W${weekNumber}`;
+                currentWeekCases = [];
+                
+                updateCurrentWeekDisplay();
+                updateCurrentWeekCases();
+                updateDashboardStats();
+                
+                alert('Nouvelle semaine créée avec succès !');
             }
         }
-        
+
+        function getWeekNumber(date) {
+            const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            const dayNum = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        }
+
+        function updateCurrentWeekDisplay() {
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(startOfWeek.getDate() + 6);
+            
+            const formatDate = (date) => {
+                return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
+            };
+            
+            document.getElementById('currentWeek').textContent = 
+                `Semaine du ${formatDate(startOfWeek)} au ${formatDate(endOfWeek)} ${now.getFullYear()}`;
+        }
+
+        function chargerSemaine() {
+            const selectedWeek = document.getElementById('weekSelector').value;
+            alert(`Chargement des données pour la ${selectedWeek}`);
+        }
+
+        function calculerSalaires() {
+            alert('Calcul des salaires en cours...');
+        }
+
+        function exporterDonnees() {
+            const data = {
+                employees: employees,
+                currentWeek: currentWeek,
+                currentWeekCases: currentWeekCases,
+                exportDate: new Date().toISOString()
+            };
+            
+            const dataStr = JSON.stringify(data, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `comptabilite_avocat_${currentWeek}.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
         function logout() {
             localStorage.removeItem('authToken');
             localStorage.removeItem('user');
             location.reload();
         }
-        
-        // Fermeture des modals en cliquant en dehors
-        window.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal')) {
-                e.target.classList.remove('active');
+
+        // Initialisation des données au démarrage
+        setTimeout(() => {
+            if (authToken) {
+                updateDashboardStats();
             }
-        });
+        }, 100);
     </script>
 </body>
-</html>`);
-});
-
-// Route de sante
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
-// Gestion des erreurs
-app.use((error, req, res, next) => {
-  console.error('Erreur serveur:', error);
-  res.status(500).json({ error: 'Erreur interne du serveur' });
-});
-
-// Demarrage du serveur
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Cabinet d'Avocats demarre sur le port ${PORT}`);
-  console.log(`Interface: http://localhost:${PORT}`);
-});
-
-// Gestion des erreurs non capturees
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});
+</html>

@@ -881,7 +881,179 @@ app.get('/', (req, res) => {
         </div>
     </div>
     
-    <!-- Modals here... -->
+<!-- Modal Client -->
+    <div id="clientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="clientModalTitle">Nouveau Client</h3>
+                <button class="close-btn" onclick="closeClientModal()">&times;</button>
+            </div>
+            <form id="clientForm">
+                <input type="hidden" id="clientId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientPrenom">Prénom :</label>
+                        <input type="text" id="clientPrenom" name="prenom" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="clientNom">Nom :</label>
+                        <input type="text" id="clientNom" name="nom" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientEmail">Email :</label>
+                        <input type="email" id="clientEmail" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientTelephone">Téléphone :</label>
+                        <input type="tel" id="clientTelephone" name="telephone">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="clientAdresse">Adresse :</label>
+                    <textarea id="clientAdresse" name="adresse" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientDateNaissance">Date de naissance :</label>
+                        <input type="date" id="clientDateNaissance" name="date_naissance">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientProfession">Profession :</label>
+                        <input type="text" id="clientProfession" name="profession">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="clientNotes">Notes :</label>
+                    <textarea id="clientNotes" name="notes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-success">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeClientModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal Dossier -->
+    <div id="dossierModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="dossierModalTitle">Nouveau Dossier</h3>
+                <button class="close-btn" onclick="closeDossierModal()">&times;</button>
+            </div>
+            <form id="dossierForm">
+                <input type="hidden" id="dossierId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dossierNumero">Numéro de dossier :</label>
+                        <input type="text" id="dossierNumero" name="numero_dossier" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dossierClient">Client :</label>
+                        <select id="dossierClient" name="client_id" required>
+                            <option value="">Sélectionner un client</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="dossierTitre">Titre :</label>
+                    <input type="text" id="dossierTitre" name="titre" required>
+                </div>
+                <div class="form-group">
+                    <label for="dossierDescription">Description :</label>
+                    <textarea id="dossierDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dossierType">Type d'affaire :</label>
+                        <select id="dossierType" name="type_affaire">
+                            <option value="">Sélectionner un type</option>
+                            <option value="Civil">Civil</option>
+                            <option value="Pénal">Pénal</option>
+                            <option value="Commercial">Commercial</option>
+                            <option value="Famille">Famille</option>
+                            <option value="Immobilier">Immobilier</option>
+                            <option value="Travail">Travail</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="dossierPriorite">Priorité :</label>
+                        <select id="dossierPriorite" name="priorite">
+                            <option value="basse">Basse</option>
+                            <option value="normale" selected>Normale</option>
+                            <option value="haute">Haute</option>
+                            <option value="urgente">Urgente</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="dossierAvocat">Avocat responsable :</label>
+                    <input type="text" id="dossierAvocat" name="avocat_responsable">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-warning">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeDossierModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal Rendez-vous -->
+    <div id="rdvModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="rdvModalTitle">Nouveau Rendez-vous</h3>
+                <button class="close-btn" onclick="closeRdvModal()">&times;</button>
+            </div>
+            <form id="rdvForm">
+                <input type="hidden" id="rdvId">
+                <div class="form-group">
+                    <label for="rdvTitre">Titre :</label>
+                    <input type="text" id="rdvTitre" name="titre" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rdvClient">Client :</label>
+                        <select id="rdvClient" name="client_id" required>
+                            <option value="">Sélectionner un client</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rdvDossier">Dossier (optionnel) :</label>
+                        <select id="rdvDossier" name="dossier_id">
+                            <option value="">Aucun dossier</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rdvDate">Date et heure :</label>
+                        <input type="datetime-local" id="rdvDate" name="date_rdv" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rdvDuree">Durée (minutes) :</label>
+                        <input type="number" id="rdvDuree" name="duree" value="60" min="15" max="480">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="rdvLieu">Lieu :</label>
+                    <input type="text" id="rdvLieu" name="lieu">
+                </div>
+                <div class="form-group">
+                    <label for="rdvDescription">Description :</label>
+                    <textarea id="rdvDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-info">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeRdvModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
     
     <script>
         let authToken = localStorage.getItem('authToken');

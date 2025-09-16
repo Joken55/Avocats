@@ -44,7 +44,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrcAttr: ["'unsafe-inline'"], // Important pour les onclick
+      scriptSrcAttr: ["'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
     },
   },
@@ -56,7 +56,6 @@ app.use(cors({
   credentials: true
 }));
 
-// Middleware pour parsing
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -164,7 +163,6 @@ app.post('/setup-tables', async (req, res) => {
   try {
     console.log('Creation des tables...');
 
-    // Table des utilisateurs
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -177,7 +175,6 @@ app.post('/setup-tables', async (req, res) => {
       )
     `);
 
-    // Table des clients
     await pool.query(`
       CREATE TABLE IF NOT EXISTS clients (
         id SERIAL PRIMARY KEY,
@@ -194,7 +191,6 @@ app.post('/setup-tables', async (req, res) => {
       )
     `);
 
-    // Table des dossiers
     await pool.query(`
       CREATE TABLE IF NOT EXISTS dossiers (
         id SERIAL PRIMARY KEY,
@@ -213,7 +209,6 @@ app.post('/setup-tables', async (req, res) => {
       )
     `);
 
-    // Table des rendez-vous
     await pool.query(`
       CREATE TABLE IF NOT EXISTS rendez_vous (
         id SERIAL PRIMARY KEY,
@@ -233,7 +228,6 @@ app.post('/setup-tables', async (req, res) => {
 
     console.log('Tables creees avec succes');
 
-    // Créer l'admin par défaut
     const existingAdmin = await pool.query("SELECT * FROM users WHERE email = 'admin@cabinet.com'");
     
     if (existingAdmin.rows.length === 0) {
@@ -522,6 +516,299 @@ app.get('/', (req, res) => {
             font-family: 'Segoe UI', sans-serif; 
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             min-height: 100vh; 
+        }
+        .container { 
+            background: white; 
+            margin: 20px auto; 
+            border-radius: 15px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
+            width: 95%; 
+            max-width: 1200px; 
+            overflow: hidden; 
+        }
+        .login-container { 
+            padding: 3rem; 
+            text-align: center; 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .login-box { 
+            background: white; 
+            padding: 3rem; 
+            border-radius: 15px; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
+            width: 100%; 
+            max-width: 400px; 
+        }
+        .logo { margin-bottom: 2rem; }
+        .logo h1 { color: #2d3748; font-size: 2rem; margin-bottom: 0.5rem; }
+        .logo p { color: #718096; font-size: 1rem; }
+        .form-group { margin-bottom: 1.5rem; text-align: left; }
+        label { display: block; margin-bottom: 0.5rem; color: #2d3748; font-weight: 500; }
+        input, select, textarea { 
+            width: 100%; 
+            padding: 0.75rem; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            transition: border-color 0.3s; 
+        }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; }
+        .btn { 
+            padding: 0.75rem 1.5rem; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            text-decoration: none; 
+            display: inline-block; 
+            text-align: center; 
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            width: 100%; 
+        }
+        .btn-primary:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 8px 15px rgba(102, 126, 234, 0.4); 
+        }
+        .btn-secondary { 
+            background: #f7fafc; 
+            color: #4a5568; 
+            border: 2px solid #e2e8f0; 
+        }
+        .btn-secondary:hover { background: #edf2f7; }
+        .btn-danger { background: #f56565; color: white; }
+        .btn-success { background: #48bb78; color: white; }
+        .btn-info { background: #4299e1; color: white; }
+        .btn-warning { background: #ed8936; color: white; }
+        .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
+        .test-accounts { 
+            margin-top: 2rem; 
+            padding: 1rem; 
+            background: linear-gradient(135deg, #e6fffa 0%, #f0fff4 100%); 
+            border-radius: 8px; 
+            font-size: 0.9rem; 
+            color: #4a5568; 
+            border: 1px solid #81e6d9;
+        }
+        .test-accounts h3 { margin-bottom: 0.5rem; color: #2d3748; }
+        .dashboard { display: none; }
+        .dashboard.active { display: block; }
+        .navbar { 
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%); 
+            color: white; 
+            padding: 1.5rem; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 1rem; 
+        }
+        .navbar h2 { margin: 0; font-size: 1.5rem; }
+        .nav-links { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .nav-link { 
+            padding: 0.5rem 1rem; 
+            background: rgba(255,255,255,0.1); 
+            border: none; 
+            color: white; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 0.9rem; 
+            transition: all 0.3s; 
+        }
+        .nav-link:hover { 
+            background: rgba(255,255,255,0.2); 
+            transform: translateY(-1px); 
+        }
+        .nav-link.active { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        .content { padding: 2rem; min-height: 600px; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .section-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 2rem; 
+            flex-wrap: wrap; 
+            gap: 1rem; 
+        }
+        .section-header h2 { color: #2d3748; margin: 0; }
+        .stats { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 1.5rem; 
+            margin-bottom: 2rem; 
+        }
+        .stat-card { 
+            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%); 
+            padding: 2rem; 
+            border-radius: 12px; 
+            text-align: center; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            border: 1px solid #e2e8f0; 
+            transition: all 0.3s; 
+        }
+        .stat-card:hover { 
+            transform: translateY(-4px); 
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
+        }
+        .stat-card:nth-child(1) { border-left: 4px solid #48bb78; }
+        .stat-card:nth-child(2) { border-left: 4px solid #ed8936; }
+        .stat-card:nth-child(3) { border-left: 4px solid #4299e1; }
+        .stat-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+        .stat-number { 
+            font-size: 2.5rem; 
+            font-weight: bold; 
+            margin-bottom: 0.5rem; 
+        }
+        .stat-card:nth-child(1) .stat-number { color: #48bb78; }
+        .stat-card:nth-child(2) .stat-number { color: #ed8936; }
+        .stat-card:nth-child(3) .stat-number { color: #4299e1; }
+        .stat-label { color: #718096; font-size: 0.9rem; font-weight: 500; }
+        .welcome-card { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            text-align: center; 
+            margin-bottom: 2rem; 
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .welcome-icon { font-size: 3rem; margin-bottom: 1rem; }
+        .welcome-card h3 { margin-bottom: 1rem; font-size: 1.5rem; }
+        .welcome-card p { margin-bottom: 1.5rem; opacity: 0.9; }
+        .card { 
+            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); 
+            padding: 2rem; 
+            border-radius: 12px; 
+            margin-bottom: 2rem; 
+            border: 1px solid #e2e8f0; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .card h3 { color: #2d3748; margin-bottom: 1.5rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .form-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
+        .data-list { max-height: 500px; overflow-y: auto; }
+        .data-item { 
+            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%); 
+            padding: 1.5rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #667eea; 
+            transition: all 0.3s; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .data-item:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+            border-left-color: #764ba2;
+        }
+        .data-item-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 0.5rem; 
+        }
+        .data-item-title { font-weight: bold; color: #2d3748; font-size: 1.1rem; }
+        .data-item-info { color: #718096; font-size: 0.9rem; line-height: 1.4; margin-bottom: 1rem; }
+        .data-item-actions { display: flex; gap: 0.5rem; }
+        .error { 
+            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%); 
+            color: #c53030; 
+            padding: 0.75rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #e53e3e;
+        }
+        .success { 
+            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%); 
+            color: #2f855a; 
+            padding: 0.75rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #38a169;
+        }
+        .loading { 
+            background: linear-gradient(135deg, #bee3f8 0%, #90cdf4 100%); 
+            color: #2b6cb0; 
+            padding: 0.75rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            border-left: 4px solid #3182ce;
+        }
+        .modal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: rgba(0,0,0,0.5); 
+            z-index: 1000; 
+        }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            width: 90%; 
+            max-width: 500px; 
+            max-height: 90vh; 
+            overflow-y: auto; 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .modal-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 1.5rem; 
+        }
+        .modal-header h3 { margin: 0; color: #2d3748; }
+        .close-btn { 
+            background: none; 
+            border: none; 
+            font-size: 1.5rem; 
+            cursor: pointer; 
+            color: #718096; 
+            transition: color 0.3s;
+        }
+        .close-btn:hover { color: #e53e3e; }
+        
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status-ouvert { background: #c6f6d5; color: #2f855a; }
+        .status-ferme { background: #fed7d7; color: #c53030; }
+        .status-en-cours { background: #fbd38d; color: #c05621; }
+        .status-prevu { background: #bee3f8; color: #2b6cb0; }
+        .status-termine { background: #e2e8f0; color: #4a5568; }
+        
+        .priority-haute { background: #fed7d7; color: #c53030; }
+        .priority-normale { background: #bee3f8; color: #2b6cb0; }
+        .priority-basse { background: #c6f6d5; color: #2f855a; }
+        .priority-urgente { background: #e53e3e; color: white; }
+        
+        @media (max-width: 768px) {
+            .container { margin: 10px; width: calc(100% - 20px); }
+            .navbar { padding: 1rem; flex-direction: column; gap: 1rem; }
+            .nav-links { width: 100%; justify-content: center; }
+            .form-row { grid-template-columns: 1fr; }
+            .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+            .section-header { flex-direction: column; align-items: stretch; }
+            .modal-content { margin: 1rem; width: calc(100% - 2rem); }
         }
     </style>
 </head>
@@ -1056,297 +1343,398 @@ app.get('/', (req, res) => {
         function displayRendezVous() {
             const rdvList = document.getElementById('rdvList');
             if (rendezVous.length === 0) {
-                rdvList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">
-        .container { 
-            background: white; 
-            margin: 20px auto; 
-            border-radius: 15px; 
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
-            width: 95%; 
-            max-width: 1200px; 
-            overflow: hidden; 
+                rdvList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun rendez-vous programmé.</p>';
+                return;
+            }
+            
+            rdvList.innerHTML = rendezVous.map(rdv => {
+                const dateRdv = new Date(rdv.date_rdv);
+                const dateStr = dateRdv.toLocaleDateString('fr-FR');
+                const timeStr = dateRdv.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+                const statusClass = 'status-' + (rdv.statut || 'prevu').replace(' ', '-');
+                
+                return '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + rdv.titre + '</div>' +
+                        '<div>' +
+                            '<span class="status-badge ' + statusClass + '">' + (rdv.statut || 'prévu') + '</span>' +
+                            '<span style="color: #667eea; font-weight: bold; margin-left: 0.5rem;">' + dateStr + ' ' + timeStr + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        (rdv.lieu ? '<strong>Lieu :</strong> ' + rdv.lieu + '<br>' : '') +
+                        '<strong>Durée :</strong> ' + (rdv.duree || 60) + ' minutes' +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-info btn-sm" onclick="editRdv(' + rdv.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteRdv(' + rdv.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
         }
-        .login-container { 
-            padding: 3rem; 
-            text-align: center; 
-            min-height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-        }
-        .login-box { 
-            background: white; 
-            padding: 3rem; 
-            border-radius: 15px; 
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); 
-            width: 100%; 
-            max-width: 400px; 
-        }
-        .logo { margin-bottom: 2rem; }
-        .logo h1 { color: #2d3748; font-size: 2rem; margin-bottom: 0.5rem; }
-        .logo p { color: #718096; font-size: 1rem; }
-        .form-group { margin-bottom: 1.5rem; text-align: left; }
-        label { display: block; margin-bottom: 0.5rem; color: #2d3748; font-weight: 500; }
-        input, select, textarea { 
-            width: 100%; 
-            padding: 0.75rem; 
-            border: 2px solid #e2e8f0; 
-            border-radius: 8px; 
-            font-size: 1rem; 
-            transition: border-color 0.3s; 
-        }
-        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; }
-        .btn { 
-            padding: 0.75rem 1.5rem; 
-            border: none; 
-            border-radius: 8px; 
-            font-size: 1rem; 
-            font-weight: 600; 
-            cursor: pointer; 
-            transition: all 0.3s; 
-            text-decoration: none; 
-            display: inline-block; 
-            text-align: center; 
-        }
-        .btn-primary { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            color: white; 
-            width: 100%; 
-        }
-        .btn-primary:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 8px 15px rgba(102, 126, 234, 0.4); 
-        }
-        .btn-secondary { 
-            background: #f7fafc; 
-            color: #4a5568; 
-            border: 2px solid #e2e8f0; 
-        }
-        .btn-secondary:hover { background: #edf2f7; }
-        .btn-danger { background: #f56565; color: white; }
-        .btn-success { background: #48bb78; color: white; }
-        .btn-info { background: #4299e1; color: white; }
-        .btn-warning { background: #ed8936; color: white; }
-        .btn-sm { padding: 0.5rem 1rem; font-size: 0.875rem; }
-        .test-accounts { 
-            margin-top: 2rem; 
-            padding: 1rem; 
-            background: linear-gradient(135deg, #e6fffa 0%, #f0fff4 100%); 
-            border-radius: 8px; 
-            font-size: 0.9rem; 
-            color: #4a5568; 
-            border: 1px solid #81e6d9;
-        }
-        .test-accounts h3 { margin-bottom: 0.5rem; color: #2d3748; }
-        .dashboard { display: none; }
-        .dashboard.active { display: block; }
-        .navbar { 
-            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%); 
-            color: white; 
-            padding: 1.5rem; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            flex-wrap: wrap; 
-            gap: 1rem; 
-        }
-        .navbar h2 { margin: 0; font-size: 1.5rem; }
-        .nav-links { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-        .nav-link { 
-            padding: 0.5rem 1rem; 
-            background: rgba(255,255,255,0.1); 
-            border: none; 
-            color: white; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            font-size: 0.9rem; 
-            transition: all 0.3s; 
-        }
-        .nav-link:hover { 
-            background: rgba(255,255,255,0.2); 
-            transform: translateY(-1px); 
-        }
-        .nav-link.active { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-        .content { padding: 2rem; min-height: 600px; }
-        .section { display: none; }
-        .section.active { display: block; }
-        .section-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 2rem; 
-            flex-wrap: wrap; 
-            gap: 1rem; 
-        }
-        .section-header h2 { color: #2d3748; margin: 0; }
-        .stats { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-            gap: 1.5rem; 
-            margin-bottom: 2rem; 
-        }
-        .stat-card { 
-            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%); 
-            padding: 2rem; 
-            border-radius: 12px; 
-            text-align: center; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
-            border: 1px solid #e2e8f0; 
-            transition: all 0.3s; 
-        }
-        .stat-card:hover { 
-            transform: translateY(-4px); 
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15); 
-        }
-        .stat-card:nth-child(1) { border-left: 4px solid #48bb78; }
-        .stat-card:nth-child(2) { border-left: 4px solid #ed8936; }
-        .stat-card:nth-child(3) { border-left: 4px solid #4299e1; }
-        .stat-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-        .stat-number { 
-            font-size: 2.5rem; 
-            font-weight: bold; 
-            margin-bottom: 0.5rem; 
-        }
-        .stat-card:nth-child(1) .stat-number { color: #48bb78; }
-        .stat-card:nth-child(2) .stat-number { color: #ed8936; }
-        .stat-card:nth-child(3) .stat-number { color: #4299e1; }
-        .stat-label { color: #718096; font-size: 0.9rem; font-weight: 500; }
-        .welcome-card { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-            color: white; 
-            padding: 2rem; 
-            border-radius: 12px; 
-            text-align: center; 
-            margin-bottom: 2rem; 
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
-        }
-        .welcome-icon { font-size: 3rem; margin-bottom: 1rem; }
-        .welcome-card h3 { margin-bottom: 1rem; font-size: 1.5rem; }
-        .welcome-card p { margin-bottom: 1.5rem; opacity: 0.9; }
-        .card { 
-            background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%); 
-            padding: 2rem; 
-            border-radius: 12px; 
-            margin-bottom: 2rem; 
-            border: 1px solid #e2e8f0; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .card h3 { color: #2d3748; margin-bottom: 1.5rem; }
-        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-        .form-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; }
-        .data-list { max-height: 500px; overflow-y: auto; }
-        .data-item { 
-            background: linear-gradient(135deg, #fff 0%, #f8fafc 100%); 
-            padding: 1.5rem; 
-            border-radius: 8px; 
-            margin-bottom: 1rem; 
-            border-left: 4px solid #667eea; 
-            transition: all 0.3s; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        .data-item:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
-            border-left-color: #764ba2;
-        }
-        .data-item-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 0.5rem; 
-        }
-        .data-item-title { font-weight: bold; color: #2d3748; font-size: 1.1rem; }
-        .data-item-info { color: #718096; font-size: 0.9rem; line-height: 1.4; margin-bottom: 1rem; }
-        .data-item-actions { display: flex; gap: 0.5rem; }
-        .error { 
-            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%); 
-            color: #c53030; 
-            padding: 0.75rem; 
-            border-radius: 8px; 
-            margin-bottom: 1rem; 
-            border-left: 4px solid #e53e3e;
-        }
-        .success { 
-            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%); 
-            color: #2f855a; 
-            padding: 0.75rem; 
-            border-radius: 8px; 
-            margin-bottom: 1rem; 
-            border-left: 4px solid #38a169;
-        }
-        .loading { 
-            background: linear-gradient(135deg, #bee3f8 0%, #90cdf4 100%); 
-            color: #2b6cb0; 
-            padding: 0.75rem; 
-            border-radius: 8px; 
-            margin-bottom: 1rem; 
-            border-left: 4px solid #3182ce;
-        }
-        .modal { 
-            display: none; 
-            position: fixed; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            background: rgba(0,0,0,0.5); 
-            z-index: 1000; 
-        }
-        .modal.active { display: flex; align-items: center; justify-content: center; }
-        .modal-content { 
-            background: white; 
-            padding: 2rem; 
-            border-radius: 12px; 
-            width: 90%; 
-            max-width: 500px; 
-            max-height: 90vh; 
-            overflow-y: auto; 
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-        }
-        .modal-header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 1.5rem; 
-        }
-        .modal-header h3 { margin: 0; color: #2d3748; }
-        .close-btn { 
-            background: none; 
-            border: none; 
-            font-size: 1.5rem; 
-            cursor: pointer; 
-            color: #718096; 
-            transition: color 0.3s;
-        }
-        .close-btn:hover { color: #e53e3e; }
         
-        .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
+        // FONCTIONS MODALS - CLIENTS
+        function openClientModal() {
+            editMode.client = false;
+            document.getElementById('clientModalTitle').textContent = 'Nouveau Client';
+            document.getElementById('clientForm').reset();
+            document.getElementById('clientId').value = '';
+            document.getElementById('clientModal').classList.add('active');
         }
-        .status-ouvert { background: #c6f6d5; color: #2f855a; }
-        .status-ferme { background: #fed7d7; color: #c53030; }
-        .status-en-cours { background: #fbd38d; color: #c05621; }
-        .status-prevu { background: #bee3f8; color: #2b6cb0; }
-        .status-termine { background: #e2e8f0; color: #4a5568; }
         
-        .priority-haute { background: #fed7d7; color: #c53030; }
-        .priority-normale { background: #bee3f8; color: #2b6cb0; }
-        .priority-basse { background: #c6f6d5; color: #2f855a; }
-        .priority-urgente { background: #e53e3e; color: white; }
-        
-        @media (max-width: 768px) {
-            .container { margin: 10px; width: calc(100% - 20px); }
-            .navbar { padding: 1rem; flex-direction: column; gap: 1rem; }
-            .nav-links { width: 100%; justify-content: center; }
-            .form-row { grid-template-columns: 1fr; }
-            .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-            .section-header { flex-direction: column; align-items: stretch; }
-            .modal-content { margin: 1rem; width: calc(100% - 2rem); }
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('active');
         }
+        
+        function editClient(id) {
+            const client = clients.find(c => c.id === id);
+            if (!client) return;
+            
+            editMode.client = true;
+            document.getElementById('clientModalTitle').textContent = 'Modifier Client';
+            document.getElementById('clientId').value = client.id;
+            document.getElementById('clientPrenom').value = client.prenom || '';
+            document.getElementById('clientNom').value = client.nom || '';
+            document.getElementById('clientEmail').value = client.email || '';
+            document.getElementById('clientTelephone').value = client.telephone || '';
+            document.getElementById('clientAdresse').value = client.adresse || '';
+            document.getElementById('clientDateNaissance').value = client.date_naissance || '';
+            document.getElementById('clientProfession').value = client.profession || '';
+            document.getElementById('clientNotes').value = client.notes || '';
+            document.getElementById('clientModal').classList.add('active');
+        }
+        
+        document.getElementById('clientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const clientData = {
+                prenom: formData.get('prenom'),
+                nom: formData.get('nom'),
+                email: formData.get('email'),
+                telephone: formData.get('telephone'),
+                adresse: formData.get('adresse'),
+                date_naissance: formData.get('date_naissance'),
+                profession: formData.get('profession'),
+                notes: formData.get('notes')
+            };
+            
+            try {
+                const clientId = document.getElementById('clientId').value;
+                const isEdit = editMode.client && clientId;
+                
+                const response = await fetch('/api/clients' + (isEdit ? '/' + clientId : ''), {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(clientData)
+                });
+                
+                if (response.ok) {
+                    closeClientModal();
+                    await loadClients();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur: ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        });
+        
+        async function deleteClient(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer ce client ?')) return;
+            
+            try {
+                const response = await fetch('/api/clients/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                
+                if (response.ok) {
+                    await loadClients();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur: ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+        
+        // FONCTIONS MODALS - DOSSIERS
+        function openDossierModal() {
+            editMode.dossier = false;
+            document.getElementById('dossierModalTitle').textContent = 'Nouveau Dossier';
+            document.getElementById('dossierForm').reset();
+            document.getElementById('dossierId').value = '';
+            document.getElementById('dossierStatutGroup').style.display = 'none';
+            populateClientSelects();
+            
+            // Générer un numéro de dossier automatique
+            const year = new Date().getFullYear();
+            const nextNumber = String(dossiers.length + 1).padStart(4, '0');
+            document.getElementById('dossierNumero').value = 'DOS-' + year + '-' + nextNumber;
+            
+            document.getElementById('dossierModal').classList.add('active');
+        }
+        
+        function closeDossierModal() {
+            document.getElementById('dossierModal').classList.remove('active');
+        }
+        
+        function editDossier(id) {
+            const dossier = dossiers.find(d => d.id === id);
+            if (!dossier) return;
+            
+            editMode.dossier = true;
+            document.getElementById('dossierModalTitle').textContent = 'Modifier Dossier';
+            document.getElementById('dossierId').value = dossier.id;
+            document.getElementById('dossierNumero').value = dossier.numero_dossier || '';
+            document.getElementById('dossierClient').value = dossier.client_id || '';
+            document.getElementById('dossierTitre').value = dossier.titre || '';
+            document.getElementById('dossierDescription').value = dossier.description || '';
+            document.getElementById('dossierType').value = dossier.type_affaire || '';
+            document.getElementById('dossierPriorite').value = dossier.priorite || 'normale';
+            document.getElementById('dossierAvocat').value = dossier.avocat_responsable || '';
+            
+            // Afficher le champ statut en mode édition
+            document.getElementById('dossierStatutGroup').style.display = 'block';
+            document.getElementById('dossierStatut').value = dossier.statut || 'ouvert';
+            
+            populateClientSelects();
+            document.getElementById('dossierModal').classList.add('active');
+        }
+        
+        document.getElementById('dossierForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const dossierData = {
+                numero_dossier: formData.get('numero_dossier'),
+                client_id: formData.get('client_id'),
+                titre: formData.get('titre'),
+                description: formData.get('description'),
+                type_affaire: formData.get('type_affaire'),
+                priorite: formData.get('priorite'),
+                avocat_responsable: formData.get('avocat_responsable')
+            };
+            
+            const dossierId = document.getElementById('dossierId').value;
+            const isEdit = editMode.dossier && dossierId;
+            
+            if (isEdit) {
+                dossierData.statut = formData.get('statut');
+            }
+            
+            try {
+                const response = await fetch('/api/dossiers' + (isEdit ? '/' + dossierId : ''), {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(dossierData)
+                });
+                
+                if (response.ok) {
+                    closeDossierModal();
+                    await loadDossiers();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur: ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        });
+        
+        async function deleteDossier(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer ce dossier ?')) return;
+            
+            try {
+                const response = await fetch('/api/dossiers/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                
+                if (response.ok) {
+                    await loadDossiers();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur: ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+        
+        // FONCTIONS MODALS - RENDEZ-VOUS
+        function openRdvModal() {
+            editMode.rdv = false;
+            document.getElementById('rdvModalTitle').textContent = 'Nouveau Rendez-vous';
+            document.getElementById('rdvForm').reset();
+            document.getElementById('rdvId').value = '';
+            document.getElementById('rdvStatutGroup').style.display = 'none';
+            
+            // Date par défaut : demain à 10h
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(10, 0, 0, 0);
+            document.getElementById('rdvDate').value = tomorrow.toISOString().slice(0, 16);
+            
+            populateClientSelects();
+            populateDossierSelect();
+            document.getElementById('rdvModal').classList.add('active');
+        }
+        
+        function closeRdvModal() {
+            document.getElementById('rdvModal').classList.remove('active');
+        }
+        
+        function editRdv(id) {
+            const rdv = rendezVous.find(r => r.id === id);
+            if (!rdv) return;
+            
+            editMode.rdv = true;
+            document.getElementById('rdvModalTitle').textContent = 'Modifier Rendez-vous';
+            document.getElementById('rdvId').value = rdv.id;
+            document.getElementById('rdvTitre').value = rdv.titre || '';
+            document.getElementById('rdvClient').value = rdv.client_id || '';
+            document.getElementById('rdvDossier').value = rdv.dossier_id || '';
+            document.getElementById('rdvDescription').value = rdv.description || '';
+            document.getElementById('rdvDuree').value = rdv.duree || 60;
+            document.getElementById('rdvLieu').value = rdv.lieu || '';
+            
+            // Formater la date pour datetime-local
+            if (rdv.date_rdv) {
+                const date = new Date(rdv.date_rdv);
+                document.getElementById('rdvDate').value = date.toISOString().slice(0, 16);
+            }
+            
+            // Afficher le champ statut en mode édition
+            document.getElementById('rdvStatutGroup').style.display = 'block';
+            document.getElementById('rdvStatut').value = rdv.statut || 'prevu';
+            
+            populateClientSelects();
+            populateDossierSelect();
+            document.getElementById('rdvModal').classList.add('active');
+        }
+        
+        document.getElementById('rdvForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const rdvData = {
+                titre: formData.get('titre'),
+                client_id: formData.get('client_id'),
+                dossier_id: formData.get('dossier_id') || null,
+                description: formData.get('description'),
+                date_rdv: formData.get('date_rdv'),
+                duree: formData.get('duree'),
+                lieu: formData.get('lieu')
+            };
+            
+            const rdvId = document.getElementById('rdvId').value;
+            const isEdit = editMode.rdv && rdvId;
+            
+            if (isEdit) {
+                rdvData.statut = formData.get('statut');
+            }
+            
+            try {
+                const response = await fetch('/api/rendez-vous' + (isEdit ? '/' + rdvId : ''), {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(rdvData)
+                });
+                
+                if (response.ok) {
+                    closeRdvModal();
+                    await loadRendezVous();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur: ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        });
+        
+        async function deleteRdv(id) {
+            if (!confirm('Êtes-vous sûr de vouloir supprimer ce rendez-vous ?')) return;
+            
+            try {
+                const response = await fetch('/api/rendez-vous/' + id, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                
+                if (response.ok) {
+                    await loadRendezVous();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur: ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+        
+        // Fermer les modals en cliquant à l'extérieur
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+        
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            location.reload();
+        }
+    </script>
+</body>
+</html>`);
+});
+
+// Route de santé
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Gestion des erreurs
+app.use((error, req, res, next) => {
+  console.error('Erreur serveur:', error);
+  res.status(500).json({ error: 'Erreur interne du serveur' });
+});
+
+// Démarrage du serveur
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Cabinet d'Avocats démarré sur le port ${PORT}`);
+  console.log(`Interface: http://localhost:${PORT}`);
+});
+
+// Gestion des erreurs non capturées
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});.nom ? '<strong>Client :</strong> ' + rdv.prenom + ' ' + rdv.nom + '<br>' : '') +
+                        (rdv.dossier_titre ? '<strong>Dossier :</strong> ' + rdv.dossier_titre + '<br>' : '') +
+                        (rdv

@@ -338,10 +338,10 @@
         <div class="navbar">
             <h2>Cabinet d'Avocats</h2>
             <div class="nav-links">
-                <button class="nav-link active" onclick="showSection('overview')">Aperçu</button>
-                <button class="nav-link" onclick="showSection('clients')">Clients</button>
-                <button class="nav-link" onclick="showSection('dossiers')">Dossiers</button>
-                <button class="nav-link" onclick="showSection('rendez-vous')">Rendez-vous</button>
+                <button class="nav-link active" onclick="showSection('overview', this)">Aperçu</button>
+                <button class="nav-link" onclick="showSection('clients', this)">Clients</button>
+                <button class="nav-link" onclick="showSection('dossiers', this)">Dossiers</button>
+                <button class="nav-link" onclick="showSection('rendez-vous', this)">Rendez-vous</button>
                 <button class="nav-link" onclick="logout()">Déconnexion</button>
             </div>
         </div>
@@ -645,39 +645,30 @@
         }
         
         // Navigation entre sections
-        function showSection(sectionName) {
-            // Cacher toutes les sections
-            document.querySelectorAll('.section').forEach(section => {
-                section.classList.remove('active');
-            });
-            
-            // Désactiver tous les liens nav
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            
-            // Afficher la section demandée
-            const targetSection = document.getElementById(sectionName);
-            if (targetSection) {
-                targetSection.classList.add('active');
-            }
-            
-            // Activer le bon lien nav
-            event.target.classList.add('active');
-            
-            // Charger les données pour la section
-            switch(sectionName) {
-                case 'clients': 
-                    loadClients(); 
-                    break;
-                case 'dossiers': 
-                    loadDossiers(); 
-                    break;
-                case 'rendez-vous': 
-                    loadRendezVous(); 
-                    break;
-            }
-        }
+function showSection(sectionName, buttonElement) {
+    document.querySelectorAll('.section').forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    const targetSection = document.getElementById(sectionName);
+    if (targetSection) {
+        targetSection.classList.add('active');
+    }
+    
+    if (buttonElement) {
+        buttonElement.classList.add('active');
+    }
+    
+    switch(sectionName) {
+        case 'clients': loadClients(); break;
+        case 'dossiers': loadDossiers(); break;
+        case 'rendez-vous': loadRendezVous(); break;
+    }
+}
         
         // Charger toutes les données
         async function loadAllData() {

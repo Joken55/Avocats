@@ -884,22 +884,41 @@ app.get('/', (req, res) => {
             document.getElementById('dashboard').classList.add('active');
         }
         
-        function showSection(sectionName) {
-            document.querySelectorAll('.section').forEach(section => {
-                section.classList.remove('active');
-            });
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            document.getElementById(sectionName).classList.add('active');
-            event.target.classList.add('active');
-            
-            switch(sectionName) {
-                case 'clients': loadClients(); break;
-                case 'dossiers': loadDossiers(); break;
-                case 'rendez-vous': loadRendezVous(); break;
-            }
-        }
+        function showSection(sectionName, buttonElement) {
+    // Cacher toutes les sections
+    document.querySelectorAll('.section').forEach(section => {
+        section.classList.remove('active');
+    });
+    
+    // Désactiver tous les liens nav
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    // Afficher la section demandée
+    const targetSection = document.getElementById(sectionName);
+    if (targetSection) {
+        targetSection.classList.add('active');
+    }
+    
+    // Activer le bon lien nav
+    if (buttonElement) {
+        buttonElement.classList.add('active');
+    }
+    
+    // Charger les données pour la section
+    switch(sectionName) {
+        case 'clients': 
+            loadClients(); 
+            break;
+        case 'dossiers': 
+            loadDossiers(); 
+            break;
+        case 'rendez-vous': 
+            loadRendezVous(); 
+            break;
+    }
+}
         
         async function loadAllData() {
             await Promise.all([loadClients(), loadDossiers(), loadRendezVous()]);

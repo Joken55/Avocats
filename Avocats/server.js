@@ -469,6 +469,45 @@ app.post('/api/rendez-vous', authenticateToken, async (req, res) => {
   }
 });
 
+app.put('/api/rendez-vous/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { client_id, dossier_id, titre, description, date_rdv, duree, lieu, statut } = req.body;
+    
+    const result = await pool.query(
+      `UPDATE rendez_vous SET 
+        client_id = $1, dossier_id = $2, titre = $3, description = $4, 
+        date_rdv = $5, duree = $6, lieu = $7, statut = $8,
+        updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $9 RETURNING *`,
+      [client_id, dossier_id, titre, description, date_rdv, duree, lieu, statut, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Rendez-vous non trouve' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+app.delete('/api/rendez-vous/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM rendez_vous WHERE id = $1 RETURNING id', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Rendez-vous non trouve' });
+    }
+    
+    res.json({ message: 'Rendez-vous supprime avec succes' });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Route principale avec HTML integre
 app.get('/', (req, res) => {
   res.send(`<!DOCTYPE html>
@@ -484,6 +523,540 @@ app.get('/', (req, res) => {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
             min-height: 100vh; 
         }
+    </style>
+</head>
+<body>
+    <div class="login-container" id="loginContainer">
+        <div class="login-box">
+            <div class="logo">
+                <h1>Cabinet d'Avocats</h1>
+                <p>Connexion au système GTA5 RP</p>
+            </div>
+            <div id="loginMessage"></div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email :</label>
+                    <input type="email" id="email" name="email" value="admin@cabinet.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Mot de passe :</label>
+                    <input type="password" id="password" name="password" value="admin123" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Se connecter</button>
+            </form>
+            <div class="test-accounts">
+                <h3>Compte de test :</h3>
+                <strong>admin@cabinet.com</strong> / <strong>admin123</strong>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container dashboard" id="dashboard">
+        <div class="navbar">
+            <h2>Cabinet d'Avocats</h2>
+            <div class="nav-links">
+                <button class="nav-link active" onclick="showSection('overview', this)">Aperçu</button>
+                <button class="nav-link" onclick="showSection('clients', this)">Clients</button>
+                <button class="nav-link" onclick="showSection('dossiers', this)">Dossiers</button>
+                <button class="nav-link" onclick="showSection('rendez-vous', this)">Rendez-vous</button>
+                <button class="nav-link" onclick="logout()">Déconnexion</button>
+            </div>
+        </div>
+        
+        <div class="content">
+            <div id="overview" class="section active">
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-number" id="clientCount">0</div>
+                        <div class="stat-label">Clients</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-number" id="dossierCount">0</div>
+                        <div class="stat-label">Dossiers</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-number" id="rdvCount">0</div>
+                        <div class="stat-label">Rendez-vous</div>
+                    </div>
+                </div>
+                <div class="welcome-card">
+                    <div class="welcome-icon">🎉</div>
+                    <h3>Bienvenue dans votre Cabinet d'Avocats !</h3>
+                    <p>Votre système de gestion est opérationnel et prêt à l'emploi.</p>
+                </div>
+            </div>
+            
+            <div id="clients" class="section">
+                <div class="section-header">
+                    <h2>Gestion des Clients</h2>
+                    <button class="btn btn-success" onclick="openClientModal()">+ Nouveau Client</button>
+                </div>
+                <div class="card">
+                    <div class="data-list" id="clientsList">
+                        <p>Chargement des clients...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="dossiers" class="section">
+                <div class="section-header">
+                    <h2>Gestion des Dossiers</h2>
+                    <button class="btn btn-warning" onclick="openDossierModal()">+ Nouveau Dossier</button>
+                </div>
+                <div class="card">
+                    <div class="data-list" id="dossiersList">
+                        <p>Chargement des dossiers...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="rendez-vous" class="section">
+                <div class="section-header">
+                    <h2>Gestion des Rendez-vous</h2>
+                    <button class="btn btn-info" onclick="openRdvModal()">+ Nouveau Rendez-vous</button>
+                </div>
+                <div class="card">
+                    <div class="data-list" id="rdvList">
+                        <p>Chargement des rendez-vous...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Client -->
+    <div id="clientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="clientModalTitle">Nouveau Client</h3>
+                <button class="close-btn" onclick="closeClientModal()">&times;</button>
+            </div>
+            <form id="clientForm">
+                <input type="hidden" id="clientId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientPrenom">Prénom :</label>
+                        <input type="text" id="clientPrenom" name="prenom" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="clientNom">Nom :</label>
+                        <input type="text" id="clientNom" name="nom" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientEmail">Email :</label>
+                        <input type="email" id="clientEmail" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientTelephone">Téléphone :</label>
+                        <input type="tel" id="clientTelephone" name="telephone">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="clientAdresse">Adresse :</label>
+                    <textarea id="clientAdresse" name="adresse" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientDateNaissance">Date de naissance :</label>
+                        <input type="date" id="clientDateNaissance" name="date_naissance">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientProfession">Profession :</label>
+                        <input type="text" id="clientProfession" name="profession">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="clientNotes">Notes :</label>
+                    <textarea id="clientNotes" name="notes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-success">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeClientModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal Dossier -->
+    <div id="dossierModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="dossierModalTitle">Nouveau Dossier</h3>
+                <button class="close-btn" onclick="closeDossierModal()">&times;</button>
+            </div>
+            <form id="dossierForm">
+                <input type="hidden" id="dossierId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dossierNumero">Numéro de dossier :</label>
+                        <input type="text" id="dossierNumero" name="numero_dossier" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dossierClient">Client :</label>
+                        <select id="dossierClient" name="client_id" required>
+                            <option value="">Sélectionner un client</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="dossierTitre">Titre :</label>
+                    <input type="text" id="dossierTitre" name="titre" required>
+                </div>
+                <div class="form-group">
+                    <label for="dossierDescription">Description :</label>
+                    <textarea id="dossierDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dossierType">Type d'affaire :</label>
+                        <select id="dossierType" name="type_affaire">
+                            <option value="">Sélectionner un type</option>
+                            <option value="Civil">Civil</option>
+                            <option value="Pénal">Pénal</option>
+                            <option value="Commercial">Commercial</option>
+                            <option value="Famille">Famille</option>
+                            <option value="Immobilier">Immobilier</option>
+                            <option value="Travail">Travail</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="dossierPriorite">Priorité :</label>
+                        <select id="dossierPriorite" name="priorite">
+                            <option value="basse">Basse</option>
+                            <option value="normale" selected>Normale</option>
+                            <option value="haute">Haute</option>
+                            <option value="urgente">Urgente</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="dossierAvocat">Avocat responsable :</label>
+                    <input type="text" id="dossierAvocat" name="avocat_responsable">
+                </div>
+                <div class="form-group" id="dossierStatutGroup" style="display: none;">
+                    <label for="dossierStatut">Statut :</label>
+                    <select id="dossierStatut" name="statut">
+                        <option value="ouvert">Ouvert</option>
+                        <option value="en-cours">En cours</option>
+                        <option value="ferme">Fermé</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-warning">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeDossierModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal Rendez-vous -->
+    <div id="rdvModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="rdvModalTitle">Nouveau Rendez-vous</h3>
+                <button class="close-btn" onclick="closeRdvModal()">&times;</button>
+            </div>
+            <form id="rdvForm">
+                <input type="hidden" id="rdvId">
+                <div class="form-group">
+                    <label for="rdvTitre">Titre :</label>
+                    <input type="text" id="rdvTitre" name="titre" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rdvClient">Client :</label>
+                        <select id="rdvClient" name="client_id" required>
+                            <option value="">Sélectionner un client</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rdvDossier">Dossier (optionnel) :</label>
+                        <select id="rdvDossier" name="dossier_id">
+                            <option value="">Aucun dossier</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rdvDate">Date et heure :</label>
+                        <input type="datetime-local" id="rdvDate" name="date_rdv" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rdvDuree">Durée (minutes) :</label>
+                        <input type="number" id="rdvDuree" name="duree" value="60" min="15" max="480">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="rdvLieu">Lieu :</label>
+                    <input type="text" id="rdvLieu" name="lieu">
+                </div>
+                <div class="form-group">
+                    <label for="rdvDescription">Description :</label>
+                    <textarea id="rdvDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group" id="rdvStatutGroup" style="display: none;">
+                    <label for="rdvStatut">Statut :</label>
+                    <select id="rdvStatut" name="statut">
+                        <option value="prevu">Prévu</option>
+                        <option value="en-cours">En cours</option>
+                        <option value="termine">Terminé</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-info">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeRdvModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+        let clients = [];
+        let dossiers = [];
+        let rendezVous = [];
+        let editMode = {
+            client: false,
+            dossier: false,
+            rdv: false
+        };
+        
+        if (authToken) {
+            currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            showDashboard();
+            loadAllData();
+        }
+        
+        function showMessage(message, type = 'error') {
+            const messageDiv = document.getElementById('loginMessage');
+            if (messageDiv) {
+                messageDiv.innerHTML = '<div class="' + type + '">' + message + '</div>';
+                setTimeout(() => messageDiv.innerHTML = '', 5000);
+            }
+        }
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                showMessage('Connexion en cours...', 'loading');
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    authToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    showMessage('Connexion réussie !', 'success');
+                    setTimeout(() => {
+                        showDashboard();
+                        loadAllData();
+                    }, 1000);
+                } else {
+                    showMessage('Erreur: ' + data.error);
+                }
+            } catch (error) {
+                showMessage('Erreur de connexion: ' + error.message);
+            }
+        });
+        
+        function showDashboard() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+        }
+        
+        function showSection(sectionName, buttonElement) {
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            const targetSection = document.getElementById(sectionName);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            
+            if (buttonElement) {
+                buttonElement.classList.add('active');
+            }
+            
+            switch(sectionName) {
+                case 'clients': loadClients(); break;
+                case 'dossiers': loadDossiers(); break;
+                case 'rendez-vous': loadRendezVous(); break;
+            }
+        }
+        
+        async function loadAllData() {
+            try {
+                await Promise.all([loadClients(), loadDossiers(), loadRendezVous()]);
+                updateStats();
+            } catch (error) {
+                console.error('Erreur lors du chargement des données:', error);
+            }
+        }
+        
+        function updateStats() {
+            document.getElementById('clientCount').textContent = clients.length;
+            document.getElementById('dossierCount').textContent = dossiers.length;
+            document.getElementById('rdvCount').textContent = rendezVous.length;
+        }
+        
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/clients', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    clients = await response.json();
+                    displayClients();
+                    populateClientSelects();
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        function populateClientSelects() {
+            const selects = ['dossierClient', 'rdvClient'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    const currentValue = select.value;
+                    select.innerHTML = '<option value="">Sélectionner un client</option>';
+                    clients.forEach(client => {
+                        const option = document.createElement('option');
+                        option.value = client.id;
+                        option.textContent = client.prenom + ' ' + client.nom;
+                        if (client.id == currentValue) option.selected = true;
+                        select.appendChild(option);
+                    });
+                }
+            });
+        }
+        
+        function populateDossierSelect() {
+            const select = document.getElementById('rdvDossier');
+            if (select) {
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Aucun dossier</option>';
+                dossiers.forEach(dossier => {
+                    const option = document.createElement('option');
+                    option.value = dossier.id;
+                    option.textContent = dossier.numero_dossier + ' - ' + dossier.titre;
+                    if (dossier.id == currentValue) option.selected = true;
+                    select.appendChild(option);
+                });
+            }
+        }
+        
+        function displayClients() {
+            const clientsList = document.getElementById('clientsList');
+            if (clients.length === 0) {
+                clientsList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun client enregistré.</p>';
+                return;
+            }
+            
+            clientsList.innerHTML = clients.map(client => 
+                '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + client.prenom + ' ' + client.nom + '</div>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        (client.email ? '<strong>Email :</strong> ' + client.email + '<br>' : '') +
+                        (client.telephone ? '<strong>Téléphone :</strong> ' + client.telephone + '<br>' : '') +
+                        (client.profession ? '<strong>Profession :</strong> ' + client.profession : '') +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-info btn-sm" onclick="editClient(' + client.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteClient(' + client.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
+        }
+        
+        async function loadDossiers() {
+            try {
+                const response = await fetch('/api/dossiers', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    dossiers = await response.json();
+                    displayDossiers();
+                    populateDossierSelect();
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        function displayDossiers() {
+            const dossiersList = document.getElementById('dossiersList');
+            if (dossiers.length === 0) {
+                dossiersList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun dossier enregistré.</p>';
+                return;
+            }
+            
+            dossiersList.innerHTML = dossiers.map(dossier => {
+                const statusClass = 'status-' + (dossier.statut || 'ouvert').replace(' ', '-');
+                const priorityClass = 'priority-' + (dossier.priorite || 'normale');
+                
+                return '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + dossier.titre + '</div>' +
+                        '<div>' +
+                            '<span class="status-badge ' + statusClass + '">' + (dossier.statut || 'ouvert') + '</span>' +
+                            '<span class="status-badge ' + priorityClass + '">' + (dossier.priorite || 'normale') + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        '<strong>Numéro :</strong> ' + dossier.numero_dossier + '<br>' +
+                        (dossier.nom ? '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' : '') +
+                        (dossier.type_affaire ? '<strong>Type :</strong> ' + dossier.type_affaire + '<br>' : '') +
+                        (dossier.avocat_responsable ? '<strong>Avocat :</strong> ' + dossier.avocat_responsable : '') +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-info btn-sm" onclick="editDossier(' + dossier.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteDossier(' + dossier.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+        
+        async function loadRendezVous() {
+            try {
+                const response = await fetch('/api/rendez-vous', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    rendezVous = await response.json();
+                    displayRendezVous();
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        function displayRendezVous() {
+            const rdvList = document.getElementById('rdvList');
+            if (rendezVous.length === 0) {
+                rdvList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">
         .container { 
             background: white; 
             margin: 20px auto; 
@@ -777,562 +1350,3 @@ app.get('/', (req, res) => {
             .section-header { flex-direction: column; align-items: stretch; }
             .modal-content { margin: 1rem; width: calc(100% - 2rem); }
         }
-    </style>
-</head>
-<body>
-    <div class="login-container" id="loginContainer">
-        <div class="login-box">
-            <div class="logo">
-                <h1>Cabinet d'Avocats</h1>
-                <p>Connexion au système GTA5 RP</p>
-            </div>
-            <div id="loginMessage"></div>
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="email">Email :</label>
-                    <input type="email" id="email" name="email" value="admin@cabinet.com" required>
-                </div>
-                <div class="form-group">
-                    <label for="password">Mot de passe :</label>
-                    <input type="password" id="password" name="password" value="admin123" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Se connecter</button>
-            </form>
-            <div class="test-accounts">
-                <h3>Compte de test :</h3>
-                <strong>admin@cabinet.com</strong> / <strong>admin123</strong>
-            </div>
-        </div>
-    </div>
-    
-    <div class="container dashboard" id="dashboard">
-        <div class="navbar">
-            <h2>Cabinet d'Avocats</h2>
-            <div class="nav-links">
-                <button class="nav-link active" onclick="showSection('overview', this)">Aperçu</button>
-                <button class="nav-link" onclick="showSection('clients', this)">Clients</button>
-                <button class="nav-link" onclick="showSection('dossiers', this)">Dossiers</button>
-                <button class="nav-link" onclick="showSection('rendez-vous', this)">Rendez-vous</button>
-                <button class="nav-link" onclick="logout()">Déconnexion</button>
-            </div>
-        </div>
-        
-        <div class="content">
-            <div id="overview" class="section active">
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-number" id="clientCount">0</div>
-                        <div class="stat-label">Clients</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📁</div>
-                        <div class="stat-number" id="dossierCount">0</div>
-                        <div class="stat-label">Dossiers</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">📅</div>
-                        <div class="stat-number" id="rdvCount">0</div>
-                        <div class="stat-label">Rendez-vous</div>
-                    </div>
-                </div>
-                <div class="welcome-card">
-                    <div class="welcome-icon">🎉</div>
-                    <h3>Bienvenue dans votre Cabinet d'Avocats !</h3>
-                    <p>Votre système de gestion est opérationnel et prêt à l'emploi.</p>
-                </div>
-            </div>
-            
-            <div id="clients" class="section">
-                <div class="section-header">
-                    <h2>Gestion des Clients</h2>
-                    <button class="btn btn-success" onclick="openClientModal()">+ Nouveau Client</button>
-                </div>
-                <div class="card">
-                    <div class="data-list" id="clientsList">
-                        <p>Chargement des clients...</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="dossiers" class="section">
-                <div class="section-header">
-                    <h2>Gestion des Dossiers</h2>
-                    <button class="btn btn-warning" onclick="openDossierModal()">+ Nouveau Dossier</button>
-                </div>
-                <div class="card">
-                    <div class="data-list" id="dossiersList">
-                        <p>Chargement des dossiers...</p>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="rendez-vous" class="section">
-                <div class="section-header">
-                    <h2>Gestion des Rendez-vous</h2>
-                    <button class="btn btn-info" onclick="openRdvModal()">+ Nouveau Rendez-vous</button>
-                </div>
-                <div class="card">
-                    <div class="data-list" id="rdvList">
-                        <p>Chargement des rendez-vous...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-<!-- Modal Client -->
-    <div id="clientModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="clientModalTitle">Nouveau Client</h3>
-                <button class="close-btn" onclick="closeClientModal()">&times;</button>
-            </div>
-            <form id="clientForm">
-                <input type="hidden" id="clientId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="clientPrenom">Prénom :</label>
-                        <input type="text" id="clientPrenom" name="prenom" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="clientNom">Nom :</label>
-                        <input type="text" id="clientNom" name="nom" required>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="clientEmail">Email :</label>
-                        <input type="email" id="clientEmail" name="email">
-                    </div>
-                    <div class="form-group">
-                        <label for="clientTelephone">Téléphone :</label>
-                        <input type="tel" id="clientTelephone" name="telephone">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="clientAdresse">Adresse :</label>
-                    <textarea id="clientAdresse" name="adresse" rows="3"></textarea>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="clientDateNaissance">Date de naissance :</label>
-                        <input type="date" id="clientDateNaissance" name="date_naissance">
-                    </div>
-                    <div class="form-group">
-                        <label for="clientProfession">Profession :</label>
-                        <input type="text" id="clientProfession" name="profession">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="clientNotes">Notes :</label>
-                    <textarea id="clientNotes" name="notes" rows="3"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-success">Enregistrer</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeClientModal()">Annuler</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Modal Dossier -->
-    <div id="dossierModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="dossierModalTitle">Nouveau Dossier</h3>
-                <button class="close-btn" onclick="closeDossierModal()">&times;</button>
-            </div>
-            <form id="dossierForm">
-                <input type="hidden" id="dossierId">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="dossierNumero">Numéro de dossier :</label>
-                        <input type="text" id="dossierNumero" name="numero_dossier" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="dossierClient">Client :</label>
-                        <select id="dossierClient" name="client_id" required>
-                            <option value="">Sélectionner un client</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="dossierTitre">Titre :</label>
-                    <input type="text" id="dossierTitre" name="titre" required>
-                </div>
-                <div class="form-group">
-                    <label for="dossierDescription">Description :</label>
-                    <textarea id="dossierDescription" name="description" rows="3"></textarea>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="dossierType">Type d'affaire :</label>
-                        <select id="dossierType" name="type_affaire">
-                            <option value="">Sélectionner un type</option>
-                            <option value="Civil">Civil</option>
-                            <option value="Pénal">Pénal</option>
-                            <option value="Commercial">Commercial</option>
-                            <option value="Famille">Famille</option>
-                            <option value="Immobilier">Immobilier</option>
-                            <option value="Travail">Travail</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="dossierPriorite">Priorité :</label>
-                        <select id="dossierPriorite" name="priorite">
-                            <option value="basse">Basse</option>
-                            <option value="normale" selected>Normale</option>
-                            <option value="haute">Haute</option>
-                            <option value="urgente">Urgente</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="dossierAvocat">Avocat responsable :</label>
-                    <input type="text" id="dossierAvocat" name="avocat_responsable">
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-warning">Enregistrer</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeDossierModal()">Annuler</button>
-                </div>
-            </form>
-        </div>
-    </div>
-    
-    <!-- Modal Rendez-vous -->
-    <div id="rdvModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="rdvModalTitle">Nouveau Rendez-vous</h3>
-                <button class="close-btn" onclick="closeRdvModal()">&times;</button>
-            </div>
-            <form id="rdvForm">
-                <input type="hidden" id="rdvId">
-                <div class="form-group">
-                    <label for="rdvTitre">Titre :</label>
-                    <input type="text" id="rdvTitre" name="titre" required>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="rdvClient">Client :</label>
-                        <select id="rdvClient" name="client_id" required>
-                            <option value="">Sélectionner un client</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="rdvDossier">Dossier (optionnel) :</label>
-                        <select id="rdvDossier" name="dossier_id">
-                            <option value="">Aucun dossier</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="rdvDate">Date et heure :</label>
-                        <input type="datetime-local" id="rdvDate" name="date_rdv" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="rdvDuree">Durée (minutes) :</label>
-                        <input type="number" id="rdvDuree" name="duree" value="60" min="15" max="480">
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="rdvLieu">Lieu :</label>
-                    <input type="text" id="rdvLieu" name="lieu">
-                </div>
-                <div class="form-group">
-                    <label for="rdvDescription">Description :</label>
-                    <textarea id="rdvDescription" name="description" rows="3"></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="submit" class="btn btn-info">Enregistrer</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeRdvModal()">Annuler</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script>
-    
-    <script>
-        let authToken = localStorage.getItem('authToken');
-        let currentUser = null;
-        let clients = [];
-        let dossiers = [];
-        let rendezVous = [];
-        
-        if (authToken) {
-            currentUser = JSON.parse(localStorage.getItem('user') || '{}');
-            showDashboard();
-            loadAllData();
-        }
-        
-        function showMessage(message, type = 'error') {
-            const messageDiv = document.getElementById('loginMessage');
-            if (messageDiv) {
-                messageDiv.innerHTML = '<div class="' + type + '">' + message + '</div>';
-                setTimeout(() => messageDiv.innerHTML = '', 5000);
-            }
-        }
-        
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            
-            try {
-                showMessage('Connexion en cours...', 'loading');
-                const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-                
-                const data = await response.json();
-                if (response.ok) {
-                    authToken = data.token;
-                    currentUser = data.user;
-                    localStorage.setItem('authToken', authToken);
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    showMessage('Connexion réussie !', 'success');
-                    setTimeout(() => {
-                        showDashboard();
-                        loadAllData();
-                    }, 1000);
-                } else {
-                    showMessage('Erreur: ' + data.error);
-                }
-            } catch (error) {
-                showMessage('Erreur de connexion: ' + error.message);
-            }
-        });
-        
-        function showDashboard() {
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('dashboard').classList.add('active');
-        }
-        
-        function showSection(sectionName, buttonElement) {
-            document.querySelectorAll('.section').forEach(section => {
-                section.classList.remove('active');
-            });
-            
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            
-            const targetSection = document.getElementById(sectionName);
-            if (targetSection) {
-                targetSection.classList.add('active');
-            }
-            
-            if (buttonElement) {
-                buttonElement.classList.add('active');
-            }
-            
-            switch(sectionName) {
-                case 'clients': loadClients(); break;
-                case 'dossiers': loadDossiers(); break;
-                case 'rendez-vous': loadRendezVous(); break;
-            }
-        }
-        
-        async function loadAllData() {
-            try {
-                await Promise.all([loadClients(), loadDossiers(), loadRendezVous()]);
-                updateStats();
-            } catch (error) {
-                console.error('Erreur lors du chargement des données:', error);
-            }
-        }
-        
-        function updateStats() {
-            document.getElementById('clientCount').textContent = clients.length;
-            document.getElementById('dossierCount').textContent = dossiers.length;
-            document.getElementById('rdvCount').textContent = rendezVous.length;
-        }
-        
-        async function loadClients() {
-            try {
-                const response = await fetch('/api/clients', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (response.ok) {
-                    clients = await response.json();
-                    displayClients();
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-            }
-        }
-        
-        function displayClients() {
-            const clientsList = document.getElementById('clientsList');
-            if (clients.length === 0) {
-                clientsList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun client enregistré.</p>';
-                return;
-            }
-            
-            clientsList.innerHTML = clients.map(client => 
-                '<div class="data-item">' +
-                    '<div class="data-item-header">' +
-                        '<div class="data-item-title">' + client.prenom + ' ' + client.nom + '</div>' +
-                    '</div>' +
-                    '<div class="data-item-info">' +
-                        (client.email ? '<strong>Email :</strong> ' + client.email + '<br>' : '') +
-                        (client.telephone ? '<strong>Téléphone :</strong> ' + client.telephone + '<br>' : '') +
-                        (client.profession ? '<strong>Profession :</strong> ' + client.profession : '') +
-                    '</div>' +
-                    '<div class="data-item-actions">' +
-                        '<button class="btn btn-info btn-sm" onclick="editClient(' + client.id + ')">Modifier</button>' +
-                        '<button class="btn btn-danger btn-sm" onclick="deleteClient(' + client.id + ')">Supprimer</button>' +
-                    '</div>' +
-                '</div>'
-            ).join('');
-        }
-        
-        async function loadDossiers() {
-            try {
-                const response = await fetch('/api/dossiers', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (response.ok) {
-                    dossiers = await response.json();
-                    displayDossiers();
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-            }
-        }
-        
-        function displayDossiers() {
-            const dossiersList = document.getElementById('dossiersList');
-            if (dossiers.length === 0) {
-                dossiersList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun dossier enregistré.</p>';
-                return;
-            }
-            
-            dossiersList.innerHTML = dossiers.map(dossier => {
-                const statusClass = 'status-' + (dossier.statut || 'ouvert').replace(' ', '-');
-                const priorityClass = 'priority-' + (dossier.priorite || 'normale');
-                
-                return '<div class="data-item">' +
-                    '<div class="data-item-header">' +
-                        '<div class="data-item-title">' + dossier.titre + '</div>' +
-                        '<div>' +
-                            '<span class="status-badge ' + statusClass + '">' + (dossier.statut || 'ouvert') + '</span>' +
-                            '<span class="status-badge ' + priorityClass + '">' + (dossier.priorite || 'normale') + '</span>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="data-item-info">' +
-                        '<strong>Numéro :</strong> ' + dossier.numero_dossier + '<br>' +
-                        (dossier.nom ? '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' : '') +
-                        (dossier.type_affaire ? '<strong>Type :</strong> ' + dossier.type_affaire + '<br>' : '') +
-                        (dossier.avocat_responsable ? '<strong>Avocat :</strong> ' + dossier.avocat_responsable : '') +
-                    '</div>' +
-                    '<div class="data-item-actions">' +
-                        '<button class="btn btn-info btn-sm" onclick="editDossier(' + dossier.id + ')">Modifier</button>' +
-                        '<button class="btn btn-danger btn-sm" onclick="deleteDossier(' + dossier.id + ')">Supprimer</button>' +
-                    '</div>' +
-                '</div>';
-            }).join('');
-        }
-        
-        async function loadRendezVous() {
-            try {
-                const response = await fetch('/api/rendez-vous', {
-                    headers: { 'Authorization': 'Bearer ' + authToken }
-                });
-                if (response.ok) {
-                    rendezVous = await response.json();
-                    displayRendezVous();
-                }
-            } catch (error) {
-                console.error('Erreur:', error);
-            }
-        }
-        
-        function displayRendezVous() {
-            const rdvList = document.getElementById('rdvList');
-            if (rendezVous.length === 0) {
-                rdvList.innerHTML = '<p style="text-align: center; color: #718096; padding: 2rem;">Aucun rendez-vous programmé.</p>';
-                return;
-            }
-            
-            rdvList.innerHTML = rendezVous.map(rdv => {
-                const dateRdv = new Date(rdv.date_rdv);
-                const dateStr = dateRdv.toLocaleDateString('fr-FR');
-                const timeStr = dateRdv.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
-                const statusClass = 'status-' + (rdv.statut || 'prevu').replace(' ', '-');
-                
-                return '<div class="data-item">' +
-                    '<div class="data-item-header">' +
-                        '<div class="data-item-title">' + rdv.titre + '</div>' +
-                        '<div>' +
-                            '<span class="status-badge ' + statusClass + '">' + (rdv.statut || 'prévu') + '</span>' +
-                            '<span style="color: #667eea; font-weight: bold; margin-left: 0.5rem;">' + dateStr + ' ' + timeStr + '</span>' +
-                        '</div>' +
-                    '</div>' +
-                    '<div class="data-item-info">' +
-                        (rdv.nom ? '<strong>Client :</strong> ' + rdv.prenom + ' ' + rdv.nom + '<br>' : '') +
-                        (rdv.dossier_titre ? '<strong>Dossier :</strong> ' + rdv.dossier_titre + '<br>' : '') +
-                        (rdv.lieu ? '<strong>Lieu :</strong> ' + rdv.lieu + '<br>' : '') +
-                        '<strong>Durée :</strong> ' + (rdv.duree || 60) + ' minutes' +
-                    '</div>' +
-                    '<div class="data-item-actions">' +
-                        '<button class="btn btn-info btn-sm" onclick="editRdv(' + rdv.id + ')">Modifier</button>' +
-                        '<button class="btn btn-danger btn-sm" onclick="deleteRdv(' + rdv.id + ')">Supprimer</button>' +
-                    '</div>' +
-                '</div>';
-            }).join('');
-        }
-        
-        // Fonctions placeholder pour les modals
-        function openClientModal() { alert('Modal client à implémenter'); }
-        function openDossierModal() { alert('Modal dossier à implémenter'); }
-        function openRdvModal() { alert('Modal RDV à implémenter'); }
-        function editClient(id) { alert('Édition client ' + id); }
-        function editDossier(id) { alert('Édition dossier ' + id); }
-        function editRdv(id) { alert('Édition RDV ' + id); }
-        function deleteClient(id) { if(confirm('Supprimer ?')) alert('Client supprimé'); }
-        function deleteDossier(id) { if(confirm('Supprimer ?')) alert('Dossier supprimé'); }
-        function deleteRdv(id) { if(confirm('Supprimer ?')) alert('RDV supprimé'); }
-        
-        function logout() {
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('user');
-            location.reload();
-        }
-    </script>
-</body>
-</html>`);
-});
-
-// Route de santé
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
-});
-
-// Gestion des erreurs
-app.use((error, req, res, next) => {
-  console.error('Erreur serveur:', error);
-  res.status(500).json({ error: 'Erreur interne du serveur' });
-});
-
-// Démarrage du serveur
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Cabinet d'Avocats démarré sur le port ${PORT}`);
-  console.log(`Interface: http://localhost:${PORT}`);
-});
-
-// Gestion des erreurs non capturées
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  process.exit(1);
-});

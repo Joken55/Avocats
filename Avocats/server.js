@@ -1964,4 +1964,749 @@ app.get('/', (req, res) => {
                 <div class="stats">
                     <div class="stat-card">
                         <div class="stat-icon">👥</div>
-                        <div class="stat-number" id="clientCount">
+                        <div class="stat-number" id="clientCount">0</div>
+                        <div class="stat-label">Clients</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📁</div>
+                        <div class="stat-number" id="dossierCount">0</div>
+                        <div class="stat-label">Dossiers</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-number" id="rdvCount">0</div>
+                        <div class="stat-label">Rendez-vous</div>
+                    </div>
+                </div>
+                <div class="welcome-card">
+                    <div class="welcome-icon">🎉</div>
+                    <h3>Bienvenue dans votre Cabinet d'Avocats !</h3>
+                    <p>Votre systeme de gestion est operationnel et pret a l'emploi.</p>
+                </div>
+            </div>
+            
+            <div id="clients" class="section">
+                <div class="section-header">
+                    <h2>Gestion des Clients</h2>
+                    <button class="btn btn-primary" onclick="openClientModal()">Nouveau Client</button>
+                </div>
+                <div class="card">
+                    <div class="data-list" id="clientsList">
+                        <p>Chargement des clients...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="dossiers" class="section">
+                <div class="section-header">
+                    <h2>Gestion des Dossiers</h2>
+                    <button class="btn btn-primary" onclick="openDossierModal()">Nouveau Dossier</button>
+                </div>
+                <div class="card">
+                    <div class="data-list" id="dossiersList">
+                        <p>Chargement des dossiers...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="rendez-vous" class="section">
+                <div class="section-header">
+                    <h2>Gestion des Rendez-vous</h2>
+                    <button class="btn btn-primary" onclick="openRdvModal()">Nouveau Rendez-vous</button>
+                </div>
+                <div class="card">
+                    <div class="data-list" id="rdvList">
+                        <p>Chargement des rendez-vous...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Client -->
+    <div id="clientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="clientModalTitle">Nouveau Client</h3>
+                <button class="close-btn" onclick="closeClientModal()">&times;</button>
+            </div>
+            <form id="clientForm">
+                <input type="hidden" id="clientId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientPrenom">Prenom :</label>
+                        <input type="text" id="clientPrenom" name="prenom" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="clientNom">Nom :</label>
+                        <input type="text" id="clientNom" name="nom" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientEmail">Email :</label>
+                        <input type="email" id="clientEmail" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientTelephone">Telephone :</label>
+                        <input type="tel" id="clientTelephone" name="telephone">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="clientAdresse">Adresse :</label>
+                    <textarea id="clientAdresse" name="adresse" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="clientDateNaissance">Date de naissance :</label>
+                        <input type="date" id="clientDateNaissance" name="date_naissance">
+                    </div>
+                    <div class="form-group">
+                        <label for="clientProfession">Profession :</label>
+                        <input type="text" id="clientProfession" name="profession">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="clientNotes">Notes :</label>
+                    <textarea id="clientNotes" name="notes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeClientModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal Dossier -->
+    <div id="dossierModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="dossierModalTitle">Nouveau Dossier</h3>
+                <button class="close-btn" onclick="closeDossierModal()">&times;</button>
+            </div>
+            <form id="dossierForm">
+                <input type="hidden" id="dossierId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dossierNumero">Numero de dossier :</label>
+                        <input type="text" id="dossierNumero" name="numero_dossier" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="dossierClient">Client :</label>
+                        <select id="dossierClient" name="client_id" required>
+                            <option value="">Selectionner un client</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="dossierTitre">Titre :</label>
+                    <input type="text" id="dossierTitre" name="titre" required>
+                </div>
+                <div class="form-group">
+                    <label for="dossierDescription">Description :</label>
+                    <textarea id="dossierDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dossierType">Type d'affaire :</label>
+                        <select id="dossierType" name="type_affaire">
+                            <option value="">Selectionner un type</option>
+                            <option value="Civil">Civil</option>
+                            <option value="Penal">Penal</option>
+                            <option value="Commercial">Commercial</option>
+                            <option value="Famille">Famille</option>
+                            <option value="Immobilier">Immobilier</option>
+                            <option value="Travail">Travail</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="dossierPriorite">Priorite :</label>
+                        <select id="dossierPriorite" name="priorite">
+                            <option value="basse">Basse</option>
+                            <option value="normale" selected>Normale</option>
+                            <option value="haute">Haute</option>
+                            <option value="urgente">Urgente</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="dossierAvocat">Avocat responsable :</label>
+                    <input type="text" id="dossierAvocat" name="avocat_responsable">
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeDossierModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal Rendez-vous -->
+    <div id="rdvModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="rdvModalTitle">Nouveau Rendez-vous</h3>
+                <button class="close-btn" onclick="closeRdvModal()">&times;</button>
+            </div>
+            <form id="rdvForm">
+                <input type="hidden" id="rdvId">
+                <div class="form-group">
+                    <label for="rdvTitre">Titre :</label>
+                    <input type="text" id="rdvTitre" name="titre" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rdvClient">Client :</label>
+                        <select id="rdvClient" name="client_id" required>
+                            <option value="">Selectionner un client</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rdvDossier">Dossier (optionnel) :</label>
+                        <select id="rdvDossier" name="dossier_id">
+                            <option value="">Aucun dossier</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rdvDate">Date et heure :</label>
+                        <input type="datetime-local" id="rdvDate" name="date_rdv" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rdvDuree">Duree (minutes) :</label>
+                        <input type="number" id="rdvDuree" name="duree" value="60" min="15" max="480">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="rdvLieu">Lieu :</label>
+                    <input type="text" id="rdvLieu" name="lieu">
+                </div>
+                <div class="form-group">
+                    <label for="rdvDescription">Description :</label>
+                    <textarea id="rdvDescription" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeRdvModal()">Annuler</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+        let clients = [];
+        let dossiers = [];
+        let rendezVous = [];
+        
+        if (authToken) {
+            currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+            showDashboard();
+            loadAllData();
+        }
+        
+        function showMessage(message, type = 'error') {
+            const messageDiv = document.getElementById('loginMessage');
+            if (messageDiv) {
+                messageDiv.innerHTML = '<div class="' + type + '">' + message + '</div>';
+                setTimeout(() => messageDiv.innerHTML = '', 5000);
+            }
+        }
+        
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                showMessage('Connexion en cours...', 'loading');
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    authToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem('authToken', authToken);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    showMessage('Connexion reussie !', 'success');
+                    setTimeout(() => {
+                        showDashboard();
+                        loadAllData();
+                    }, 1000);
+                } else {
+                    showMessage('Erreur: ' + data.error);
+                }
+            } catch (error) {
+                showMessage('Erreur de connexion: ' + error.message);
+            }
+        });
+        
+        function showDashboard() {
+            document.getElementById('loginContainer').style.display = 'none';
+            document.getElementById('dashboard').classList.add('active');
+        }
+        
+        function showSection(sectionName) {
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.getElementById(sectionName).classList.add('active');
+            event.target.classList.add('active');
+            
+            switch(sectionName) {
+                case 'clients': loadClients(); break;
+                case 'dossiers': loadDossiers(); break;
+                case 'rendez-vous': loadRendezVous(); break;
+            }
+        }
+        
+        async function loadAllData() {
+            await Promise.all([loadClients(), loadDossiers(), loadRendezVous()]);
+            updateStats();
+        }
+        
+        function updateStats() {
+            document.getElementById('clientCount').textContent = clients.length;
+            document.getElementById('dossierCount').textContent = dossiers.length;
+            document.getElementById('rdvCount').textContent = rendezVous.length;
+        }
+        
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/clients', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    clients = await response.json();
+                    displayClients();
+                    updateClientSelects();
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        function displayClients() {
+            const clientsList = document.getElementById('clientsList');
+            if (clients.length === 0) {
+                clientsList.innerHTML = '<p>Aucun client enregistre.</p>';
+                return;
+            }
+            clientsList.innerHTML = clients.map(client => 
+                '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + client.prenom + ' ' + client.nom + '</div>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        (client.email ? '<strong>Email :</strong> ' + client.email + '<br>' : '') +
+                        (client.telephone ? '<strong>Telephone :</strong> ' + client.telephone + '<br>' : '') +
+                        (client.profession ? '<strong>Profession :</strong> ' + client.profession : '') +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-secondary btn-sm" onclick="editClient(' + client.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteClient(' + client.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
+        }
+        
+        function updateClientSelects() {
+            const selects = ['dossierClient', 'rdvClient'];
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (select) {
+                    select.innerHTML = '<option value="">Selectionner un client</option>' +
+                        clients.map(client => 
+                            '<option value="' + client.id + '">' + client.prenom + ' ' + client.nom + '</option>'
+                        ).join('');
+                }
+            });
+        }
+        
+        async function loadDossiers() {
+            try {
+                const response = await fetch('/api/dossiers', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    dossiers = await response.json();
+                    displayDossiers();
+                    updateDossierSelects();
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        function displayDossiers() {
+            const dossiersList = document.getElementById('dossiersList');
+            if (dossiers.length === 0) {
+                dossiersList.innerHTML = '<p>Aucun dossier enregistre.</p>';
+                return;
+            }
+            dossiersList.innerHTML = dossiers.map(dossier => 
+                '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + dossier.titre + '</div>' +
+                        '<span style="color: #667eea; font-weight: bold;">' + (dossier.statut || 'ouvert') + '</span>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        '<strong>Numero :</strong> ' + dossier.numero_dossier + '<br>' +
+                        (dossier.nom ? '<strong>Client :</strong> ' + dossier.prenom + ' ' + dossier.nom + '<br>' : '') +
+                        (dossier.type_affaire ? '<strong>Type :</strong> ' + dossier.type_affaire + '<br>' : '') +
+                        (dossier.avocat_responsable ? '<strong>Avocat :</strong> ' + dossier.avocat_responsable : '') +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-secondary btn-sm" onclick="editDossier(' + dossier.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteDossier(' + dossier.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>'
+            ).join('');
+        }
+        
+        function updateDossierSelects() {
+            const select = document.getElementById('rdvDossier');
+            if (select) {
+                select.innerHTML = '<option value="">Aucun dossier</option>' +
+                    dossiers.map(dossier => 
+                        '<option value="' + dossier.id + '">' + dossier.numero_dossier + ' - ' + dossier.titre + '</option>'
+                    ).join('');
+            }
+        }
+        
+        async function loadRendezVous() {
+            try {
+                const response = await fetch('/api/rendez-vous', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                if (response.ok) {
+                    rendezVous = await response.json();
+                    displayRendezVous();
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+        
+        function displayRendezVous() {
+            const rdvList = document.getElementById('rdvList');
+            if (rendezVous.length === 0) {
+                rdvList.innerHTML = '<p>Aucun rendez-vous programme.</p>';
+                return;
+            }
+            rdvList.innerHTML = rendezVous.map(rdv => {
+                const dateRdv = new Date(rdv.date_rdv);
+                const dateStr = dateRdv.toLocaleDateString('fr-FR');
+                const timeStr = dateRdv.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+                return '<div class="data-item">' +
+                    '<div class="data-item-header">' +
+                        '<div class="data-item-title">' + rdv.titre + '</div>' +
+                        '<span style="color: #667eea; font-weight: bold;">' + dateStr + ' ' + timeStr + '</span>' +
+                    '</div>' +
+                    '<div class="data-item-info">' +
+                        (rdv.nom ? '<strong>Client :</strong> ' + rdv.prenom + ' ' + rdv.nom + '<br>' : '') +
+                        (rdv.dossier_titre ? '<strong>Dossier :</strong> ' + rdv.dossier_titre + '<br>' : '') +
+                        (rdv.lieu ? '<strong>Lieu :</strong> ' + rdv.lieu + '<br>' : '') +
+                        '<strong>Duree :</strong> ' + (rdv.duree || 60) + ' minutes' +
+                    '</div>' +
+                    '<div class="data-item-actions">' +
+                        '<button class="btn btn-secondary btn-sm" onclick="editRdv(' + rdv.id + ')">Modifier</button>' +
+                        '<button class="btn btn-danger btn-sm" onclick="deleteRdv(' + rdv.id + ')">Supprimer</button>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        }
+        
+        // Modals
+        function openClientModal(clientId = null) {
+            const modal = document.getElementById('clientModal');
+            const title = document.getElementById('clientModalTitle');
+            const form = document.getElementById('clientForm');
+            
+            if (clientId) {
+                const client = clients.find(c => c.id == clientId);
+                if (client) {
+                    title.textContent = 'Modifier Client';
+                    document.getElementById('clientId').value = client.id;
+                    document.getElementById('clientPrenom').value = client.prenom || '';
+                    document.getElementById('clientNom').value = client.nom || '';
+                    document.getElementById('clientEmail').value = client.email || '';
+                    document.getElementById('clientTelephone').value = client.telephone || '';
+                    document.getElementById('clientAdresse').value = client.adresse || '';
+                    document.getElementById('clientDateNaissance').value = client.date_naissance || '';
+                    document.getElementById('clientProfession').value = client.profession || '';
+                    document.getElementById('clientNotes').value = client.notes || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Client';
+                form.reset();
+                document.getElementById('clientId').value = '';
+            }
+            modal.classList.add('active');
+        }
+        
+        function closeClientModal() {
+            document.getElementById('clientModal').classList.remove('active');
+        }
+        
+        function openDossierModal(dossierId = null) {
+            const modal = document.getElementById('dossierModal');
+            const title = document.getElementById('dossierModalTitle');
+            const form = document.getElementById('dossierForm');
+            updateClientSelects();
+            
+            if (dossierId) {
+                const dossier = dossiers.find(d => d.id == dossierId);
+                if (dossier) {
+                    title.textContent = 'Modifier Dossier';
+                    document.getElementById('dossierId').value = dossier.id;
+                    document.getElementById('dossierNumero').value = dossier.numero_dossier || '';
+                    document.getElementById('dossierClient').value = dossier.client_id || '';
+                    document.getElementById('dossierTitre').value = dossier.titre || '';
+                    document.getElementById('dossierDescription').value = dossier.description || '';
+                    document.getElementById('dossierType').value = dossier.type_affaire || '';
+                    document.getElementById('dossierPriorite').value = dossier.priorite || 'normale';
+                    document.getElementById('dossierAvocat').value = dossier.avocat_responsable || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Dossier';
+                form.reset();
+                document.getElementById('dossierId').value = '';
+                const nextNumber = String(dossiers.length + 1).padStart(4, '0');
+                document.getElementById('dossierNumero').value = 'DOS-' + nextNumber;
+            }
+            modal.classList.add('active');
+        }
+        
+        function closeDossierModal() {
+            document.getElementById('dossierModal').classList.remove('active');
+        }
+        
+        function openRdvModal(rdvId = null) {
+            const modal = document.getElementById('rdvModal');
+            const title = document.getElementById('rdvModalTitle');
+            const form = document.getElementById('rdvForm');
+            updateClientSelects();
+            updateDossierSelects();
+            
+            if (rdvId) {
+                const rdv = rendezVous.find(r => r.id == rdvId);
+                if (rdv) {
+                    title.textContent = 'Modifier Rendez-vous';
+                    document.getElementById('rdvId').value = rdv.id;
+                    document.getElementById('rdvTitre').value = rdv.titre || '';
+                    document.getElementById('rdvClient').value = rdv.client_id || '';
+                    document.getElementById('rdvDossier').value = rdv.dossier_id || '';
+                    document.getElementById('rdvDate').value = rdv.date_rdv ? rdv.date_rdv.slice(0, 16) : '';
+                    document.getElementById('rdvDuree').value = rdv.duree || 60;
+                    document.getElementById('rdvLieu').value = rdv.lieu || '';
+                    document.getElementById('rdvDescription').value = rdv.description || '';
+                }
+            } else {
+                title.textContent = 'Nouveau Rendez-vous';
+                form.reset();
+                document.getElementById('rdvId').value = '';
+                document.getElementById('rdvDuree').value = 60;
+            }
+            modal.classList.add('active');
+        }
+        
+        function closeRdvModal() {
+            document.getElementById('rdvModal').classList.remove('active');
+        }
+        
+        // Formulaires
+        document.getElementById('clientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const clientId = document.getElementById('clientId').value;
+            const formData = new FormData(e.target);
+            const clientData = {};
+            formData.forEach((value, key) => {
+                clientData[key] = value || null;
+            });
+            
+            try {
+                const url = clientId ? '/api/clients/' + clientId : '/api/clients';
+                const method = clientId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(clientData)
+                });
+                
+                if (response.ok) {
+                    closeClientModal();
+                    await loadClients();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        document.getElementById('dossierForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const dossierId = document.getElementById('dossierId').value;
+            const formData = new FormData(e.target);
+            const dossierData = {};
+            formData.forEach((value, key) => {
+                dossierData[key] = value || null;
+            });
+            
+            try {
+                const url = dossierId ? '/api/dossiers/' + dossierId : '/api/dossiers';
+                const method = dossierId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(dossierData)
+                });
+                
+                if (response.ok) {
+                    closeDossierModal();
+                    await loadDossiers();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        document.getElementById('rdvForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const rdvId = document.getElementById('rdvId').value;
+            const formData = new FormData(e.target);
+            const rdvData = {};
+            formData.forEach((value, key) => {
+                rdvData[key] = value || null;
+            });
+            
+            try {
+                const url = rdvId ? '/api/rendez-vous/' + rdvId : '/api/rendez-vous';
+                const method = rdvId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(rdvData)
+                });
+                
+                if (response.ok) {
+                    closeRdvModal();
+                    await loadRendezVous();
+                    updateStats();
+                } else {
+                    const error = await response.json();
+                    alert('Erreur : ' + error.error);
+                }
+            } catch (error) {
+                alert('Erreur : ' + error.message);
+            }
+        });
+        
+        // Fonctions d'edition
+        function editClient(clientId) { openClientModal(clientId); }
+        function editDossier(dossierId) { openDossierModal(dossierId); }
+        function editRdv(rdvId) { openRdvModal(rdvId); }
+        
+        // Fonctions de suppression
+        async function deleteClient(clientId) {
+            if (confirm('Etes-vous sur de vouloir supprimer ce client ?')) {
+                try {
+                    const response = await fetch('/api/clients/' + clientId, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    if (response.ok) {
+                        await loadClients();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        async function deleteDossier(dossierId) {
+            if (confirm('Etes-vous sur de vouloir supprimer ce dossier ?')) {
+                try {
+                    const response = await fetch('/api/dossiers/' + dossierId, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    if (response.ok) {
+                        await loadDossiers();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        async function deleteRdv(rdvId) {
+            if (confirm('Etes-vous sur de vouloir supprimer ce rendez-vous ?')) {
+                try {
+                    const response = await fetch('/api/rendez-vous/' + rdvId, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': 'Bearer ' + authToken }
+                    });
+                    if (response.ok) {
+                        await loadRendezVous();
+                        updateStats();
+                    } else {
+                        const error = await response.json();
+                        alert('Erreur : ' + error.error);
+                    }
+                } catch (error) {
+                    alert('Erreur : ' + error.message);
+                }
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            location.reload();
+        }
+        
+        // Fermeture des modals en cliquant en dehors
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal')) {
+                e.target.classList.remove('active');
+            }
+        });
+    </script>
+</body>
+</html>`);
+});
